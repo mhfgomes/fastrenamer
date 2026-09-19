@@ -1,0 +1,199 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+jobs:
+  resolve_tag:
+    name: Resolve Release Tag
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    outputs:
+      tag_name: ${{ steps.tag.outputs.tag_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Resolve v* tag at commit
+        id: tag
+        shell: bash
+        run: |
+          tag_name="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          if [ -z "${tag_name}" ]; then
+            echo "No stable release tag found for this CI run."
+          fi
+          echo "tag_name=${tag_name}" >> "${GITHUB_OUTPUT}"
+
+  create_release:
+    name: Create Draft Release
+    needs:
+      - resolve_tag
+    if: needs.resolve_tag.outputs.tag_name != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create draft GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ needs.resolve_tag.outputs.tag_name }}
+        run: |
+          gh release view "${TAG_NAME}" --repo "${GH_REPO}" >/dev/null 2>&1 || \
+          gh release create "${TAG_NAME}" --repo "${GH_REPO}" --title "${TAG_NAME}" --generate-notes --draft
+
+  build:
+    name: Build Stable ${{ matrix.platform_name }}
+    needs:
+      - resolve_tag
+      - create_release
+    if: needs.resolve_tag.outputs.tag_name != ''
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform_name: macOS
+            build_command: bun run electron:build:mac
+          - os: windows-latest
+            platform_name: Windows
+            build_command: bun run electron:build:win
+          - os: ubuntu-latest
+            platform_name: Linux
+            build_command: bun run electron:build:linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Set stable package version
+        shell: bash
+        env:
+          TAG_NAME: ${{ needs.resolve_tag.outputs.tag_name }}
+        run: |
+          stable_version="${TAG_NAME#v}"
+          jq --arg version "${stable_version}" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          jq --arg version "${stable_version}" '.version = $version' packages/rename-engine/package.json > packages/rename-engine/package.json.tmp
+          mv packages/rename-engine/package.json.tmp packages/rename-engine/package.json
+
+      - name: Build app
+        run: ${{ matrix.build_command }}
+
+      - name: Upload assets to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ needs.resolve_tag.outputs.tag_name }}
+        run: |
+          files=()
+          latest_files=()
+          ref_version="${TAG_NAME#v}"
+
+          make_latest_name() {
+            local filename="$1"
+            local latest_name="$filename"
+
+            if [[ -n "${TAG_NAME}" && "$latest_name" == *"${TAG_NAME}"* ]]; then
+              latest_name="${latest_name/${TAG_NAME}/latest}"
+            elif [[ -n "${ref_version}" && "$latest_name" == *"${ref_version}"* ]]; then
+              latest_name="${latest_name/${ref_version}/latest}"
+            else
+              case "$latest_name" in
+                *.tar.gz)
+                  latest_name="${latest_name%.tar.gz}-latest.tar.gz"
+                  ;;
+                *.tar.xz)
+                  latest_name="${latest_name%.tar.xz}-latest.tar.xz"
+                  ;;
+                *.tar.bz2)
+                  latest_name="${latest_name%.tar.bz2}-latest.tar.bz2"
+                  ;;
+                *.*)
+                  latest_name="${latest_name%.*}-latest.${latest_name##*.}"
+                  ;;
+                *)
+                  latest_name="${latest_name}-latest"
+                  ;;
+              esac
+            fi
+
+            printf '%s\n' "$latest_name"
+          }
+
+          while IFS= read -r file; do
+            filename="$(basename "$file")"
+            case "$filename" in
+              builder-debug.yml)
+                continue
+                ;;
+            esac
+
+            files+=("$file")
+
+            case "$filename" in
+              *.yml|*.yaml|*.blockmap)
+                continue
+                ;;
+            esac
+
+            latest_name="$(make_latest_name "$filename")"
+            latest_file="release/${latest_name}"
+            cp "$file" "$latest_file"
+            latest_files+=("$latest_file")
+          done < <(find release -maxdepth 1 -type f | sort)
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No release files found"
+            exit 1
+          fi
+
+          gh release upload "${TAG_NAME}" "${files[@]}" "${latest_files[@]}" --repo "${GH_REPO}" --clobber
+
+  publish_release:
+    name: Publish Release
+    needs:
+      - resolve_tag
+      - build
+    if: needs.resolve_tag.outputs.tag_name != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Publish draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ needs.resolve_tag.outputs.tag_name }}
+        run: |
+          gh release edit "${TAG_NAME}" --repo "${GH_REPO}" --draft=false

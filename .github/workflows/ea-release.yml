@@ -1,0 +1,180 @@
+name: EA Release
+
+permissions:
+  contents: write
+  actions: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify_ci:
+    name: Verify CI Passed
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require main branch
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "EA releases can only be created from main."
+            exit 1
+          fi
+
+      - name: Check CI succeeded for this commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          conclusion="$(
+            gh run list \
+              --repo "${GH_REPO}" \
+              --workflow=ci.yml \
+              --commit="${SHA}" \
+              --json conclusion,status \
+              --jq '[.[] | select(.status == "completed")] | first | .conclusion // empty'
+          )"
+
+          if [ "${conclusion}" != "success" ]; then
+            echo "CI has not completed successfully for commit ${SHA} (conclusion: ${conclusion:-none})."
+            exit 1
+          fi
+
+          echo "CI succeeded for commit ${SHA}"
+
+  prepare_ea_version:
+    name: Prepare EA Version
+    needs:
+      - verify_ci
+    runs-on: ubuntu-latest
+
+    outputs:
+      ea_version: ${{ steps.version.outputs.ea_version }}
+      ea_tag: ${{ steps.version.outputs.ea_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Compute EA version
+        id: version
+        shell: bash
+        run: |
+          base_version="$(jq -r '.version' package.json)"
+          ea_version="${base_version}-ea.${GITHUB_RUN_NUMBER}"
+          ea_tag="v${ea_version}"
+          echo "ea_version=${ea_version}" >> "${GITHUB_OUTPUT}"
+          echo "ea_tag=${ea_tag}" >> "${GITHUB_OUTPUT}"
+
+  create_ea_release:
+    name: Create EA Release
+    needs:
+      - prepare_ea_version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Create Early Access release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+          TAG_NAME: ${{ needs.prepare_ea_version.outputs.ea_tag }}
+          EA_VERSION: ${{ needs.prepare_ea_version.outputs.ea_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
+            echo "Tag ${TAG_NAME} already exists"
+          else
+            git tag -a "${TAG_NAME}" -m "Early Access ${EA_VERSION}" "${RELEASE_SHA}"
+            git push origin "${TAG_NAME}"
+          fi
+
+          if gh release view "${TAG_NAME}" --repo "${GH_REPO}" >/dev/null 2>&1; then
+            echo "Release ${TAG_NAME} already exists"
+          else
+            gh release create "${TAG_NAME}" --repo "${GH_REPO}" --title "Early Access ${EA_VERSION}" --prerelease --target "${RELEASE_SHA}" --generate-notes
+          fi
+
+  build_ea:
+    name: Build EA ${{ matrix.platform_name }}
+    needs:
+      - prepare_ea_version
+      - create_ea_release
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform_name: macOS
+            build_command: bun run electron:build:mac:ea
+          - os: windows-latest
+            platform_name: Windows
+            build_command: bun run electron:build:win:ea
+          - os: ubuntu-latest
+            platform_name: Linux
+            build_command: bun run electron:build:linux:ea
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Set EA package version
+        shell: bash
+        env:
+          EA_VERSION: ${{ needs.prepare_ea_version.outputs.ea_version }}
+        run: |
+          jq --arg version "${EA_VERSION}" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          jq --arg version "${EA_VERSION}" '.version = $version' packages/rename-engine/package.json > packages/rename-engine/package.json.tmp
+          mv packages/rename-engine/package.json.tmp packages/rename-engine/package.json
+
+      - name: Build app
+        run: ${{ matrix.build_command }}
+
+      - name: Upload assets to Early Access release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ needs.prepare_ea_version.outputs.ea_tag }}
+        run: |
+          files=()
+          while IFS= read -r file; do
+            filename="$(basename "$file")"
+            case "$filename" in
+              builder-debug.yml)
+                continue
+                ;;
+            esac
+            files+=("$file")
+          done < <(find release -maxdepth 1 -type f | sort)
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No release files found"
+            exit 1
+          fi
+
+          gh release upload "${TAG_NAME}" "${files[@]}" --repo "${GH_REPO}" --clobber

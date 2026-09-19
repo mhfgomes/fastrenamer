@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+
+@import "tailwindcss";
+
+/* ── Design tokens (reference CSS vars so themes can override them) ─────────── */
+@theme inline {
+  /* Core palette */
+  --color-background:       var(--background);
+  --color-foreground:       var(--foreground);
+  --color-card:             var(--card);
+  --color-card-foreground:  var(--card-foreground);
+  --color-surface:          var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border:           var(--border);
+  --color-muted:            var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent:           var(--accent);
+  --color-accent-foreground:var(--accent-foreground);
+  --color-destructive:      var(--destructive);
+  --color-ring:             var(--ring);
+
+  /* Status */
+  --color-ok:        var(--status-ok);
+  --color-conflict:  var(--status-conflict);
+  --color-invalid:   var(--status-invalid);
+  --color-unchanged: var(--status-unchanged);
+
+  /* Typography */
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ── Default theme fallback ─────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --background:        #080c14;
+    --foreground:        #e6ecf8;
+    --card:              #0d1322;
+    --card-foreground:   #e6ecf8;
+    --surface:           #121929;
+    --surface-elevated:  #19223a;
+    --border:            #1c2840;
+    --muted:             #121929;
+    --muted-foreground:  #68739a;
+    --accent:            #4e8fff;
+    --accent-foreground: #080c14;
+    --destructive:       #f87171;
+    --ring:              #4e8fff;
+    --status-ok:         #34d399;
+    --status-conflict:   #f87171;
+    --status-invalid:    #fb923c;
+    --status-unchanged:  #64748b;
+  }
+}
+
+/* ── Base resets ────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+html[data-color-scheme="light"] { color-scheme: light; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  /* Subtle dot-grid texture */
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+}
+
+#root { min-height: 100vh; }
+
+button, input, select, textarea { font: inherit; }
+
+.app-drag {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.app-no-drag,
+.app-no-drag * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* ── Custom scrollbar ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
