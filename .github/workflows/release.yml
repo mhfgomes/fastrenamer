@@ -117,39 +117,6 @@ jobs:
           TAG_NAME: ${{ needs.resolve_tag.outputs.tag_name }}
         run: |
           files=()
-          latest_files=()
-          ref_version="${TAG_NAME#v}"
-
-          make_latest_name() {
-            local filename="$1"
-            local latest_name="$filename"
-
-            if [[ -n "${TAG_NAME}" && "$latest_name" == *"${TAG_NAME}"* ]]; then
-              latest_name="${latest_name/${TAG_NAME}/latest}"
-            elif [[ -n "${ref_version}" && "$latest_name" == *"${ref_version}"* ]]; then
-              latest_name="${latest_name/${ref_version}/latest}"
-            else
-              case "$latest_name" in
-                *.tar.gz)
-                  latest_name="${latest_name%.tar.gz}-latest.tar.gz"
-                  ;;
-                *.tar.xz)
-                  latest_name="${latest_name%.tar.xz}-latest.tar.xz"
-                  ;;
-                *.tar.bz2)
-                  latest_name="${latest_name%.tar.bz2}-latest.tar.bz2"
-                  ;;
-                *.*)
-                  latest_name="${latest_name%.*}-latest.${latest_name##*.}"
-                  ;;
-                *)
-                  latest_name="${latest_name}-latest"
-                  ;;
-              esac
-            fi
-
-            printf '%s\n' "$latest_name"
-          }
 
           while IFS= read -r file; do
             filename="$(basename "$file")"
@@ -160,17 +127,6 @@ jobs:
             esac
 
             files+=("$file")
-
-            case "$filename" in
-              *.yml|*.yaml|*.blockmap)
-                continue
-                ;;
-            esac
-
-            latest_name="$(make_latest_name "$filename")"
-            latest_file="release/${latest_name}"
-            cp "$file" "$latest_file"
-            latest_files+=("$latest_file")
           done < <(find release -maxdepth 1 -type f | sort)
 
           if [ ${#files[@]} -eq 0 ]; then
@@ -178,7 +134,7 @@ jobs:
             exit 1
           fi
 
-          gh release upload "${TAG_NAME}" "${files[@]}" "${latest_files[@]}" --repo "${GH_REPO}" --clobber
+          gh release upload "${TAG_NAME}" "${files[@]}" --repo "${GH_REPO}" --clobber
 
   publish_release:
     name: Publish Release
