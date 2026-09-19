@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Fast Renamer</title>
+    <script>
+      try {
+        const root = document.documentElement;
+        const variableNames = {
+          background: '--background',
+          foreground: '--foreground',
+          card: '--card',
+          cardForeground: '--card-foreground',
+          surface: '--surface',
+          surfaceElevated: '--surface-elevated',
+          border: '--border',
+          muted: '--muted',
+          mutedForeground: '--muted-foreground',
+          accent: '--accent',
+          accentForeground: '--accent-foreground',
+          destructive: '--destructive',
+          ring: '--ring',
+          statusOk: '--status-ok',
+          statusConflict: '--status-conflict',
+          statusInvalid: '--status-invalid',
+          statusUnchanged: '--status-unchanged',
+        };
+        const fallbackThemes = {
+          dark: {
+            baseThemeId: 'dark',
+            tokens: {
+              background: '#080c14',
+              foreground: '#e6ecf8',
+              card: '#0d1322',
+              cardForeground: '#e6ecf8',
+              surface: '#121929',
+              surfaceElevated: '#19223a',
+              border: '#1c2840',
+              muted: '#121929',
+              mutedForeground: '#68739a',
+              accent: '#4e8fff',
+              accentForeground: '#080c14',
+              destructive: '#f87171',
+              ring: '#4e8fff',
+              statusOk: '#34d399',
+              statusConflict: '#f87171',
+              statusInvalid: '#fb923c',
+              statusUnchanged: '#64748b',
+            },
+          },
+          light: {
+            baseThemeId: 'light',
+            tokens: {
+              background: '#f5f7fc',
+              foreground: '#0c1021',
+              card: '#ffffff',
+              cardForeground: '#0c1021',
+              surface: '#edf0f8',
+              surfaceElevated: '#ffffff',
+              border: '#dde2ef',
+              muted: '#edf0f8',
+              mutedForeground: '#697290',
+              accent: '#3762e0',
+              accentForeground: '#ffffff',
+              destructive: '#dc2626',
+              ring: '#3762e0',
+              statusOk: '#16a34a',
+              statusConflict: '#dc2626',
+              statusInvalid: '#ea580c',
+              statusUnchanged: '#64748b',
+            },
+          },
+        };
+
+        const snapshot = JSON.parse(localStorage.getItem('theme_snapshot') || 'null');
+        const legacyTheme = localStorage.getItem('theme');
+        const theme =
+          snapshot && snapshot.tokens
+            ? snapshot
+            : fallbackThemes[legacyTheme === 'light' ? 'light' : 'dark'];
+
+        const baseThemeId =
+          theme.baseThemeId === 'light' || theme.baseThemeId === 'dark'
+            ? theme.baseThemeId
+            : theme.colorScheme === 'light' || theme.colorScheme === 'dark'
+              ? theme.colorScheme
+              : 'dark';
+
+        root.dataset.colorScheme = baseThemeId === 'light' ? 'light' : 'dark';
+
+        for (const [token, cssVariable] of Object.entries(variableNames)) {
+          if (theme.tokens[token]) {
+            root.style.setProperty(cssVariable, theme.tokens[token]);
+          }
+        }
+      } catch {}
+    </script>
+  </head>
+  <body class="bg-background text-foreground">
+    <div id="root"></div>
+    <script type="module" src="/src/renderer/main.tsx"></script>
+  </body>
+  </html>

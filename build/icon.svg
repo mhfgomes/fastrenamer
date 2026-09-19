@@ -1,0 +1,42 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#13213B"/>
+      <stop offset="1" stop-color="#08101F"/>
+    </linearGradient>
+    <linearGradient id="folder" x1="208" y1="252" x2="792" y2="712" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67A1FF"/>
+      <stop offset="1" stop-color="#2D64E3"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="356" y1="294" x2="691" y2="744" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9BE9D4"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <filter id="shadow" x="122" y="126" width="780" height="718" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="24"/>
+      <feGaussianBlur stdDeviation="28"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0156863 0 0 0 0 0.0588235 0 0 0 0 0.14902 0 0 0 0.45 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <circle cx="188" cy="186" r="82" fill="#4E8FFF" fill-opacity="0.12"/>
+  <circle cx="838" cy="824" r="110" fill="#34D399" fill-opacity="0.08"/>
+  <path d="M138 736C232 625 332 560 436 540C567 514 671 550 844 488" stroke="#243454" stroke-width="18" stroke-linecap="round" stroke-opacity="0.85"/>
+
+  <g filter="url(#shadow)">
+    <path d="M271 262C271 231.072 296.072 206 327 206H476.863C491.826 206 506.19 211.977 516.717 222.613L565.283 271.387C575.81 282.023 590.174 288 605.137 288H697C727.928 288 753 313.072 753 344V664C753 694.928 727.928 720 697 720H327C296.072 720 271 694.928 271 664V262Z" fill="url(#folder)"/>
+    <path d="M271 344C271 313.072 296.072 288 327 288H697C727.928 288 753 313.072 753 344V406H271V344Z" fill="#8CB8FF" fill-opacity="0.55"/>
+    <path d="M327 236H470.783C485.839 236 500.277 241.944 510.841 252.534L548.159 289.966C558.723 300.556 573.161 306.5 588.217 306.5H697" stroke="#B9D2FF" stroke-width="22" stroke-linecap="round" stroke-opacity="0.75"/>
+
+    <rect x="356" y="374" width="312" height="238" rx="54" fill="#0B1630" fill-opacity="0.82" stroke="#A9C8FF" stroke-opacity="0.22" stroke-width="10"/>
+    <path d="M428 484H598" stroke="#DDEBFF" stroke-width="30" stroke-linecap="round"/>
+    <path d="M548 432L600 484L548 536" stroke="url(#accent)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="408" y="570" width="200" height="24" rx="12" fill="#40557D"/>
+  </g>
+</svg>
