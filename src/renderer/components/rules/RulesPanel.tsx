@@ -15,7 +15,7 @@ import {
   Trash2,
   Type,
 } from 'lucide-react';
-import type { RenameRule } from '@fast-renamer/rename-engine/types';
+import type { RenameRule } from '@fastrenamer/rename-engine/types';
 import {
   Badge,
   Button,

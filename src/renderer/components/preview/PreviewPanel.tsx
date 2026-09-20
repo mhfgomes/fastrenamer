@@ -1,5 +1,5 @@
 import { Badge, EmptyState, Panel, PanelHeader, cn } from '../ui';
-import type { PreviewResult } from '@fast-renamer/rename-engine/types';
+import type { PreviewResult } from '@fastrenamer/rename-engine/types';
 import { STATUS_OPTIONS, type StatusFilter } from '../../app/defaults';
 import { useI18n } from '../../i18n';
 

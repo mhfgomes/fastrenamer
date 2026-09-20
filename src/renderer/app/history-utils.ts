@@ -1,4 +1,4 @@
-import type { HistoryEntry } from '@fast-renamer/rename-engine/types';
+import type { HistoryEntry } from '@fastrenamer/rename-engine/types';
 import type { useI18n } from '../i18n';
 
 export function getUndoStatusLabel(entry: HistoryEntry, t: ReturnType<typeof useI18n>['t']) {

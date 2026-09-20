@@ -1,5 +1,5 @@
 import { Download } from 'lucide-react';
-import type { Preset } from '@fast-renamer/rename-engine/types';
+import type { Preset } from '@fastrenamer/rename-engine/types';
 import { Badge, Button, EmptyState } from '../ui';
 import { useI18n } from '../../i18n';
 

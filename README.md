@@ -55,6 +55,9 @@ Build:
 bun run build
 ```
 
+The rename planning logic is also available as the independently buildable
+[`@fastrenamer/rename-engine`](https://www.npmjs.com/package/@fastrenamer/rename-engine) npm package.
+
 Run the built app:
 
 ```bash

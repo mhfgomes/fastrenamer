@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { PreviewRequest } from '@fast-renamer/rename-engine';
+import type { PreviewRequest } from '@fastrenamer/rename-engine';
 import { generatePreviewForRequest } from './rename-service';
 
 describe('generatePreviewForRequest source modes', () => {

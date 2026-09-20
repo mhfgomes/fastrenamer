@@ -40,9 +40,6 @@ export default defineConfig(({ mode }) => ({
   ],
   resolve: {
     alias: [
-      { find: '@fast-renamer/rename-engine/sort', replacement: path.resolve(import.meta.dirname, 'packages/rename-engine/src/sort.ts') },
-      { find: '@fast-renamer/rename-engine/types', replacement: path.resolve(import.meta.dirname, 'packages/rename-engine/src/types.ts') },
-      { find: '@fast-renamer/rename-engine', replacement: path.resolve(import.meta.dirname, 'packages/rename-engine/src/index.ts') },
       { find: '@renderer', replacement: path.resolve(import.meta.dirname, 'src/renderer') },
       { find: '@shared', replacement: path.resolve(import.meta.dirname, 'src/shared') },
     ],
@@ -57,6 +54,6 @@ export default defineConfig(({ mode }) => ({
   test: {
     environment: 'node',
     globals: true,
-    include: ['src/**/*.test.ts', 'electron/**/*.test.ts', 'packages/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'electron/**/*.test.ts'],
   },
 }));

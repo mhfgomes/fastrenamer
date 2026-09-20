@@ -1,6 +1,6 @@
 import type { DragEvent } from 'react';
-import type { PlatformTarget, SortMode, SourceMode, SourceSelection } from '@fast-renamer/rename-engine/types';
-import { sortItemsByMode } from '@fast-renamer/rename-engine/sort';
+import type { PlatformTarget, SortMode, SourceMode, SourceSelection } from '@fastrenamer/rename-engine/types';
+import { sortItemsByMode } from '@fastrenamer/rename-engine/sort';
 import type { useI18n } from '../i18n';
 
 export function getSourceModeMeta(t: ReturnType<typeof useI18n>['t']): Record<

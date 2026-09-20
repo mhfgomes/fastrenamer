@@ -14,7 +14,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import type { PlatformTarget, PreviewResult, SortMode } from '@fast-renamer/rename-engine';
+import type { PlatformTarget, PreviewResult, SortMode } from '@fastrenamer/rename-engine';
 import type { WindowState } from '@shared/contracts';
 import { APP_VERSION, SORT_MODE_OPTIONS } from '../constants';
 import type { useI18n } from '../i18n';

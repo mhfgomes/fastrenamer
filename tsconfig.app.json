@@ -15,11 +15,8 @@
     "types": ["vite/client", "node", "vitest/globals"],
     "paths": {
       "@renderer/*": ["./src/renderer/*"],
-      "@shared/*": ["./src/shared/*"],
-      "@fast-renamer/rename-engine/sort": ["./packages/rename-engine/src/sort.ts"],
-      "@fast-renamer/rename-engine/types": ["./packages/rename-engine/src/types.ts"],
-      "@fast-renamer/rename-engine": ["./packages/rename-engine/src/index.ts"]
+      "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src/renderer", "src/shared", "packages", "src/renderer/vite-env.d.ts"]
+  "include": ["src/renderer", "src/shared", "src/renderer/vite-env.d.ts"]
 }

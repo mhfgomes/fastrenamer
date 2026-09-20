@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { promises as fsp } from 'node:fs';
-import { compareNatural, normalizePathKey } from '@fast-renamer/rename-engine';
-import type { PlatformTarget, RenameBatchRecord } from '@fast-renamer/rename-engine';
+import { compareNatural, normalizePathKey } from '@fastrenamer/rename-engine';
+import type { PlatformTarget, RenameBatchRecord } from '@fastrenamer/rename-engine';
 
 interface RenameOperation extends RenameBatchRecord {
   tempName: string;

@@ -15,7 +15,7 @@ import type {
   SourceSelection,
   UndoRenameBatchRequest,
   UndoRenameBatchResult,
-} from '@fast-renamer/rename-engine';
+} from '@fastrenamer/rename-engine';
 
 const baseRuleSchema = z.object({
   id: z.string().min(1),
