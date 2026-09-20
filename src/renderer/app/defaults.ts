@@ -1,5 +1,5 @@
-import type { PreviewResult } from '@fast-renamer/rename-engine/types';
-import type { SourceMode, RenameRule } from '@fast-renamer/rename-engine/types';
+import type { PreviewResult } from '@fastrenamer/rename-engine/types';
+import type { SourceMode, RenameRule } from '@fastrenamer/rename-engine/types';
 import type { UpdateState, WindowState } from '@shared/contracts';
 
 export const DEFAULT_PREVIEW: PreviewResult = {

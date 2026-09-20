@@ -6,7 +6,7 @@ import {
   generatePreview,
   normalizePathKey,
   sortItemsByMode,
-} from '@fast-renamer/rename-engine';
+} from '@fastrenamer/rename-engine';
 import type {
   ExecuteRenameBatchRequest,
   ExecuteRenameBatchResult,
@@ -19,7 +19,7 @@ import type {
   SourceMode,
   SourceSelection,
   UndoRenameBatchResult,
-} from '@fast-renamer/rename-engine';
+} from '@fastrenamer/rename-engine';
 import { runRenamePlan } from './rename-plan';
 
 interface RenameExecutionStore {

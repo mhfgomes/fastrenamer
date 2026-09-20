@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
-import { compareNatural } from '@fast-renamer/rename-engine';
+import { compareNatural } from '@fastrenamer/rename-engine';
 import type { IpcMainInvokeEvent, OpenDialogOptions, SaveDialogOptions } from 'electron';
 import {
   pickSourcesRequestSchema,

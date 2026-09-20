@@ -9,7 +9,7 @@ import {
   Scissors,
   Type,
 } from 'lucide-react';
-import type { RenameRule } from '@fast-renamer/rename-engine/types';
+import type { RenameRule } from '@fastrenamer/rename-engine/types';
 import type { useI18n } from '../i18n';
 
 export function getRuleMeta(t: ReturnType<typeof useI18n>['t']): Record<

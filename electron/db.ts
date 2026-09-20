@@ -8,7 +8,7 @@ import type {
   PreviewSummary,
   RenameBatchRecord,
   RenameRule,
-} from '@fast-renamer/rename-engine';
+} from '@fastrenamer/rename-engine';
 import type { PresetTransferEntry } from '../src/shared/contracts';
 
 const SAMPLE_PRESETS: Array<{ name: string; rules: RenameRule[] }> = [

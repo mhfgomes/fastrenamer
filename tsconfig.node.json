@@ -12,11 +12,8 @@
     "noEmit": true,
     "types": ["node", "vitest/globals"],
     "paths": {
-      "@shared/*": ["./src/shared/*"],
-      "@fast-renamer/rename-engine/sort": ["./packages/rename-engine/src/sort.ts"],
-      "@fast-renamer/rename-engine/types": ["./packages/rename-engine/src/types.ts"],
-      "@fast-renamer/rename-engine": ["./packages/rename-engine/src/index.ts"]
+      "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["electron", "vite.config.ts", "src/shared", "packages"]
+  "include": ["electron", "vite.config.ts", "src/shared"]
 }

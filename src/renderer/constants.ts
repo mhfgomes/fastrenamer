@@ -1,4 +1,4 @@
-import type { SortMode } from '@fast-renamer/rename-engine';
+import type { SortMode } from '@fastrenamer/rename-engine';
 
 export const APP_VERSION = __APP_VERSION__;
 

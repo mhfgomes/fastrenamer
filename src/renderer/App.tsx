@@ -25,7 +25,7 @@ import type {
   RenameRule,
   SortMode,
   SourceSelection,
-} from '@fast-renamer/rename-engine/types';
+} from '@fastrenamer/rename-engine/types';
 import type { UpdateChannel, UpdateState, WindowState } from '@shared/contracts';
 import {
   Badge,
