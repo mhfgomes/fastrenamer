@@ -2,7 +2,11 @@
   "name": "fastrenamer",
   "version": "0.1.1",
   "description": "Desktop batch renaming utility built with Bun, Electron, React, and TypeScript.",
-  "author": "mhfgomes",
+  "author": {
+    "name": "mhfgomes",
+    "email": "mhfgomes@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/mhfgomes/fastrenamer",
   "type": "module",
   "main": "dist-electron/main.js",
   "license": "MIT",
@@ -60,7 +64,11 @@
     "linux": {
       "icon": "build/icon.png",
       "category": "Utility",
-      "artifactName": "Fast-Renamer-${version}.${ext}"
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "artifactName": "Fast-Renamer-${version}-${arch}.${ext}"
     },
     "nsis": {
       "artifactName": "Fast-Renamer-Setup-${version}-${arch}.${ext}",
