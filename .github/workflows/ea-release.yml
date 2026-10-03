@@ -92,6 +92,15 @@ jobs:
         shell: bash
         run: |
           base_version="$(jq -r '.version' package.json)"
+
+          # A prerelease sorts below its release (0.1.1-ea.1 < 0.1.1), so once
+          # the package version has shipped as stable, build EA releases as
+          # prereleases of the next patch version instead.
+          if git ls-remote --exit-code --tags origin "refs/tags/v${base_version}" >/dev/null; then
+            IFS=. read -r major minor patch <<< "${base_version}"
+            base_version="${major}.${minor}.$((patch + 1))"
+          fi
+
           ea_version="${base_version}-ea.${GITHUB_RUN_NUMBER}"
           ea_tag="v${ea_version}"
           echo "ea_version=${ea_version}" >> "${GITHUB_OUTPUT}"
