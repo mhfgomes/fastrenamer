@@ -5,15 +5,41 @@ permissions:
   actions: read
 
 on:
+  # Publish automatically after CI passes for every push to main.
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+  # Allow re-running an EA release by hand.
   workflow_dispatch:
 
 jobs:
   verify_ci:
     name: Verify CI Passed
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
 
+    outputs:
+      release_sha: ${{ steps.sha.outputs.release_sha }}
+
     steps:
+      - name: Resolve release commit
+        id: sha
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "release_sha=${RELEASE_SHA}" >> "${GITHUB_OUTPUT}"
+
       - name: Require main branch
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
@@ -22,6 +48,7 @@ jobs:
           fi
 
       - name: Check CI succeeded for this commit
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,6 +84,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify_ci.outputs.release_sha }}
 
       - name: Compute EA version
         id: version
@@ -71,19 +100,22 @@ jobs:
   create_ea_release:
     name: Create EA Release
     needs:
+      - verify_ci
       - prepare_ea_version
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify_ci.outputs.release_sha }}
 
       - name: Create Early Access release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ needs.verify_ci.outputs.release_sha }}
           TAG_NAME: ${{ needs.prepare_ea_version.outputs.ea_tag }}
           EA_VERSION: ${{ needs.prepare_ea_version.outputs.ea_version }}
         run: |
@@ -106,6 +138,7 @@ jobs:
   build_ea:
     name: Build EA ${{ matrix.platform_name }}
     needs:
+      - verify_ci
       - prepare_ea_version
       - create_ea_release
     runs-on: ${{ matrix.os }}
@@ -127,6 +160,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify_ci.outputs.release_sha }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
