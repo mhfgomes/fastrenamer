@@ -420,7 +420,7 @@ export function CustomRuleEditor({
 }) {
   const { t } = useI18n();
   const quickInsert = useMemo(() => getCustomRuleQuickInsert(), []);
-  const examples = useMemo(() => getCustomRuleExamples(), []);
+  const examples = useMemo(() => getCustomRuleExamples(t), [t]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   function insertSnippet(snippet: string) {

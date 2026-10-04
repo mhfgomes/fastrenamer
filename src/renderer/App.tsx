@@ -26,7 +26,7 @@ export function App() {
   const { t } = useI18n();
   const platform = useMemo(detectPlatform, []);
   const sortModeMeta = useMemo(() => getSortModeMeta(t), [t]);
-  const themeManager = useThemeManager();
+  const themeManager = useThemeManager(t);
 
   const [rules, setRules] = useState<RenameRule[]>([]);
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([...STATUS_OPTIONS]);

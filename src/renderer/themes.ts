@@ -1,5 +1,13 @@
 export type BaseThemeId = 'dark' | 'light';
 
+/** Ids of the built-in themes; their names and descriptions are translated. */
+export const PRESET_THEME_IDS = ['dark', 'light'] as const;
+export type PresetThemeId = (typeof PRESET_THEME_IDS)[number];
+
+export function isPresetThemeId(id: string): id is PresetThemeId {
+  return (PRESET_THEME_IDS as readonly string[]).includes(id);
+}
+
 export interface ThemeTokens {
   background: string;
   foreground: string;
@@ -22,8 +30,12 @@ export interface ThemeTokens {
 
 export interface AppTheme {
   id: string;
+  /** Preset names are shown through i18n (`theme.preset.<id>.name`); custom names are user text. */
   name: string;
+  /** Free-form description; empty for custom themes created by the app (see `basedOnName`). */
   description: string;
+  /** Display name of the theme a custom theme was copied from, rendered via i18n. */
+  basedOnName?: string;
   baseThemeId: BaseThemeId;
   tokens: ThemeTokens;
   kind: 'preset' | 'custom';
@@ -36,28 +48,25 @@ export const ACTIVE_THEME_STORAGE_KEY = 'theme_active_id';
 export const CUSTOM_THEMES_STORAGE_KEY = 'theme_custom_themes';
 export const THEME_SNAPSHOT_STORAGE_KEY = 'theme_snapshot';
 
-export const THEME_TOKEN_FIELDS: Array<{
-  key: ThemeTokenKey;
-  label: string;
-  description: string;
-}> = [
-  { key: 'background', label: 'Background', description: 'Main app canvas.' },
-  { key: 'foreground', label: 'Foreground', description: 'Primary body text.' },
-  { key: 'card', label: 'Card', description: 'Panels and drawers.' },
-  { key: 'cardForeground', label: 'Card Text', description: 'Text inside panels.' },
-  { key: 'surface', label: 'Surface', description: 'Inputs and subtle fills.' },
-  { key: 'surfaceElevated', label: 'Surface Elevated', description: 'Hover and lifted areas.' },
-  { key: 'border', label: 'Border', description: 'Dividers and outlines.' },
-  { key: 'muted', label: 'Muted', description: 'Soft background fills.' },
-  { key: 'mutedForeground', label: 'Muted Text', description: 'Secondary labels and hints.' },
-  { key: 'accent', label: 'Accent', description: 'Primary action color.' },
-  { key: 'accentForeground', label: 'Accent Text', description: 'Text shown on accent surfaces.' },
-  { key: 'destructive', label: 'Destructive', description: 'Danger actions and errors.' },
-  { key: 'ring', label: 'Focus Ring', description: 'Keyboard focus highlight.' },
-  { key: 'statusOk', label: 'Status OK', description: 'Success badges and indicators.' },
-  { key: 'statusConflict', label: 'Status Conflict', description: 'Conflict badges and warnings.' },
-  { key: 'statusInvalid', label: 'Status Invalid', description: 'Invalid state indicators.' },
-  { key: 'statusUnchanged', label: 'Status Unchanged', description: 'Neutral unchanged state.' },
+/** Editable theme tokens, in display order. Labels live in i18n (`theme.token.<key>.label`). */
+export const THEME_TOKEN_FIELDS: Array<{ key: ThemeTokenKey }> = [
+  { key: 'background' },
+  { key: 'foreground' },
+  { key: 'card' },
+  { key: 'cardForeground' },
+  { key: 'surface' },
+  { key: 'surfaceElevated' },
+  { key: 'border' },
+  { key: 'muted' },
+  { key: 'mutedForeground' },
+  { key: 'accent' },
+  { key: 'accentForeground' },
+  { key: 'destructive' },
+  { key: 'ring' },
+  { key: 'statusOk' },
+  { key: 'statusConflict' },
+  { key: 'statusInvalid' },
+  { key: 'statusUnchanged' },
 ];
 
 export const THEME_PRESETS: AppTheme[] = [
@@ -136,15 +145,30 @@ export function migrateLegacyThemeId(themeId: string | null) {
   return themeId ?? DEFAULT_THEME_ID;
 }
 
-export function createCustomTheme(baseTheme: AppTheme, name?: string): AppTheme {
+/**
+ * Copies `baseTheme` into a new custom theme. Callers pass already-localized strings:
+ * `name` for the copy and `basedOnName`, the display name of the source theme.
+ */
+export function createCustomTheme(
+  baseTheme: AppTheme,
+  { name, basedOnName }: { name: string; basedOnName: string },
+): AppTheme {
   return {
     ...baseTheme,
     id: `custom-${crypto.randomUUID()}`,
-    name: name ?? `${baseTheme.name} Copy`,
-    description: `Custom theme based on ${baseTheme.name}.`,
+    name,
+    description: '',
+    basedOnName,
     kind: 'custom',
     tokens: { ...baseTheme.tokens },
   };
+}
+
+/** Themes saved before descriptions were localized stored "Custom theme based on X." in English. */
+const LEGACY_BASED_ON_DESCRIPTION = /^Custom theme based on (.+)\.$/;
+
+export function parseLegacyBasedOnName(description: string) {
+  return LEGACY_BASED_ON_DESCRIPTION.exec(description.trim())?.[1];
 }
 
 export function getThemeSnapshot(theme: AppTheme) {

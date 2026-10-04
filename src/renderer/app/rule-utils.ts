@@ -67,18 +67,18 @@ export function getCustomRuleQuickInsert() {
   ] as const;
 }
 
-export function getCustomRuleExamples() {
+export function getCustomRuleExamples(t: ReturnType<typeof useI18n>['t']) {
   return [
     {
-      label: 'Snake + sequence',
+      label: t('editor.custom.example.snake_sequence'),
       value: 'snake(originalStem) + "_" + pad(index, 3) + ext(lower(extension))',
     },
     {
-      label: 'Parent prefix',
+      label: t('editor.custom.example.parent_prefix'),
       value: 'kebab(parent) + "_" + kebab(currentStem) + ext(extension)',
     },
     {
-      label: 'Conditional camera import',
+      label: t('editor.custom.example.camera_import'),
       value:
         'startsWith(originalStem, "IMG_") ? "photo_" + pad(index, 4) + ext(lower(extension)) : currentName',
     },

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UpdateChannel, UpdateState } from '@shared/contracts';
 import { DEFAULT_UPDATE_STATE } from '../app/defaults';
 import { getErrorMessage } from '../app/ipc-errors';
-import type { UpdateToastState } from '../app/update-utils';
+import { versionOrUnknown, type UpdateToastState } from '../app/update-utils';
 
 export type UpdateAction = 'idle' | 'checking' | 'installing';
 
-type Translate = (key: string, vars?: Record<string, unknown>) => string;
+import type { Translate } from '../i18n';
 
 /** Auto-updater state, actions (with error handling) and the update toast. */
 export function useUpdates({ t, onOpenSettings }: { t: Translate; onOpenSettings: () => void }) {
@@ -61,8 +61,8 @@ export function useUpdates({ t, onOpenSettings }: { t: Translate; onOpenSettings
           tone: 'accent',
           title: t('toast.update_found.title'),
           description: state.manualDownloadOnly
-            ? t('toast.update_found.description_manual', { version: state.availableVersion ?? 'unknown' })
-            : t('toast.update_found.description_auto', { version: state.availableVersion ?? 'unknown' }),
+            ? t('toast.update_found.description_manual', { version: versionOrUnknown(state.availableVersion, t) })
+            : t('toast.update_found.description_auto', { version: versionOrUnknown(state.availableVersion, t) }),
           actionLabel: state.manualDownloadOnly ? t('updates.download') : t('toast.open_settings'),
           actionKind: state.manualDownloadOnly ? 'download-update' : 'open-settings',
         });
@@ -72,7 +72,7 @@ export function useUpdates({ t, onOpenSettings }: { t: Translate; onOpenSettings
         showUpdateToast({
           tone: 'ok',
           title: t('toast.update_ready.title'),
-          description: t('toast.update_ready.description', { version: state.availableVersion ?? 'unknown' }),
+          description: t('toast.update_ready.description', { version: versionOrUnknown(state.availableVersion, t) }),
           actionLabel: t('toast.restart_now'),
           actionKind: 'install-update',
         });

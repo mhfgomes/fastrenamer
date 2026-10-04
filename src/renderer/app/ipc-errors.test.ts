@@ -6,11 +6,11 @@ describe('getErrorMessage', () => {
     const error = new Error(
       "Error invoking remote method 'executeRenameBatch': OperationBusyError: Another undo is still running.",
     );
-    expect(getErrorMessage(error)).toBe('Another undo is still running.');
+    expect(getErrorMessage(error, 'fallback')).toBe('Another undo is still running.');
   });
 
   it('keeps plain messages and falls back when empty', () => {
-    expect(getErrorMessage(new Error('Disk full'))).toBe('Disk full');
+    expect(getErrorMessage(new Error('Disk full'), 'fallback')).toBe('Disk full');
     expect(getErrorMessage(undefined, 'fallback')).toBe('fallback');
   });
 });

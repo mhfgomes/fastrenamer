@@ -1,5 +1,5 @@
 import type { UpdateState } from '@shared/contracts';
-import type { useI18n } from '../i18n';
+import type { Translate } from '../i18n';
 
 type UpdateToastTone = 'default' | 'ok' | 'accent' | 'conflict';
 
@@ -13,15 +13,31 @@ export interface UpdateToastState {
   actionKind?: 'open-settings' | 'install-update' | 'download-update';
 }
 
-export function formatBytes(value: number) {
+/** Byte size with locale-aware digits, e.g. `1.5 MB` (en) or `1,5 MB` (de). */
+export function formatBytes(value: number, locale?: string) {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (!Number.isFinite(value) || value <= 0) {
-    return '0 B';
+    return `${new Intl.NumberFormat(locale).format(0)} ${units[0]}`;
   }
 
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
   const scaled = value / 1024 ** exponent;
-  return `${scaled >= 10 || exponent === 0 ? scaled.toFixed(0) : scaled.toFixed(1)} ${units[exponent]}`;
+  const fractionDigits = scaled >= 10 || exponent === 0 ? 0 : 1;
+  const number = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(scaled);
+  return `${number} ${units[exponent]}`;
+}
+
+/** Formats a 0–100 progress value as a locale-aware percentage, e.g. `42%` or `42 %`. */
+export function formatPercent(percent: number, locale?: string) {
+  const safe = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
+  return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(safe / 100);
+}
+
+export function versionOrUnknown(version: string | null | undefined, t: Translate) {
+  return version || t('updates.version_unknown');
 }
 
 export function getUpdateTone(status: UpdateState['status']) {
@@ -41,7 +57,7 @@ export function getUpdateTone(status: UpdateState['status']) {
   }
 }
 
-export function getUpdateStatusLabel(status: UpdateState['status'], t: ReturnType<typeof useI18n>['t']) {
+export function getUpdateStatusLabel(status: UpdateState['status'], t: Translate) {
   switch (status) {
     case 'idle':
       return t('updates.status.idle');
@@ -64,26 +80,27 @@ export function getUpdateStatusLabel(status: UpdateState['status'], t: ReturnTyp
   }
 }
 
-export function getUpdateSummary(state: UpdateState, t: ReturnType<typeof useI18n>['t']) {
+export function getUpdateSummary(state: UpdateState, t: Translate, locale?: string) {
   switch (state.status) {
     case 'disabled':
-      return state.message ?? t('updates.summary.disabled');
+      // The main process only sends a fixed English sentence here; show the translated equivalent.
+      return t('updates.summary.disabled');
     case 'checking':
       return t('updates.summary.checking');
     case 'available':
       return state.manualDownloadOnly
-        ? state.message ?? t('updates.summary.available_manual', { version: state.availableVersion ?? 'unknown' })
-        : t('updates.summary.available_auto', { version: state.availableVersion ?? 'unknown' });
+        ? state.message ?? t('updates.summary.available_manual', { version: versionOrUnknown(state.availableVersion, t) })
+        : t('updates.summary.available_auto', { version: versionOrUnknown(state.availableVersion, t) });
     case 'downloading':
       return state.progress
         ? t('updates.summary.downloading_with_progress', {
-            percent: state.progress.percent.toFixed(0),
-            transferred: formatBytes(state.progress.transferred),
-            total: formatBytes(state.progress.total),
+            percent: formatPercent(state.progress.percent, locale),
+            transferred: formatBytes(state.progress.transferred, locale),
+            total: formatBytes(state.progress.total, locale),
           })
         : t('updates.summary.downloading');
     case 'downloaded':
-      return t('updates.summary.downloaded', { version: state.availableVersion ?? 'unknown' });
+      return t('updates.summary.downloaded', { version: versionOrUnknown(state.availableVersion, t) });
     case 'up-to-date':
       return state.manualDownloadOnly
         ? t('updates.summary.up_to_date_manual')

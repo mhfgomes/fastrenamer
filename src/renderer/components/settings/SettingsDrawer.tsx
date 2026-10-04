@@ -15,10 +15,11 @@ import {
   cn,
 } from '../ui';
 import { AVAILABLE_LOCALES, useI18n, type AppLocale } from '../../i18n';
-import { formatBytes, getUpdateStatusLabel, getUpdateSummary, getUpdateTone } from '../../app/update-utils';
+import { formatBytes, formatPercent, getUpdateStatusLabel, getUpdateSummary, getUpdateTone } from '../../app/update-utils';
 import type { useUpdates } from '../../hooks/useUpdates';
 import type { useThemeManager } from '../../hooks/useThemeManager';
 import { THEME_TOKEN_FIELDS } from '../../themes';
+import { getThemeName } from '../../app/theme-labels';
 import { SettingsSection, ThemeOptionCard, ThemeTokenEditor, type SettingsSectionId } from './SettingsTheme';
 
 export function SettingsDrawer({
@@ -49,6 +50,7 @@ export function SettingsDrawer({
     deleteCustomTheme,
   } = themeManager;
   const activeCustomTheme = theme.kind === 'custom' ? theme : null;
+  const unknownVersion = t('updates.version_unknown');
 
   function toggleSettingsSection(section: SettingsSectionId) {
     setOpenSettingsSection((current) => (current === section ? null : section));
@@ -98,10 +100,10 @@ export function SettingsDrawer({
             </label>
           </div>
 
-          <p className="mt-3 text-xs text-muted-foreground">{getUpdateSummary(updateState, t)}</p>
+          <p className="mt-3 text-xs text-muted-foreground">{getUpdateSummary(updateState, t, locale)}</p>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <Badge>{t('updates.current', { version: updateState.currentVersion })}</Badge>
+            <Badge>{t('updates.current', { version: updateState.currentVersion || unknownVersion })}</Badge>
             {updateState.availableVersion && updateState.availableVersion !== updateState.currentVersion && (
               <Badge tone="accent">{t('updates.latest', { version: updateState.availableVersion })}</Badge>
             )}
@@ -122,8 +124,8 @@ export function SettingsDrawer({
               </div>
               <p className="mt-2 text-[11px] text-muted-foreground">
                 {t('updates.speed', {
-                  percent: updateState.progress.percent.toFixed(0),
-                  speed: formatBytes(updateState.progress.bytesPerSecond),
+                  percent: formatPercent(updateState.progress.percent, locale),
+                  speed: formatBytes(updateState.progress.bytesPerSecond, locale),
                 })}
               </p>
             </div>
@@ -186,7 +188,7 @@ export function SettingsDrawer({
         </SettingsSection>
         <SettingsSection
           title={t('settings.appearance')}
-          badge={<Badge tone="accent">{theme.name}</Badge>}
+          badge={<Badge tone="accent">{getThemeName(theme, t)}</Badge>}
           open={openSettingsSection === 'appearance'}
           onToggle={() => toggleSettingsSection('appearance')}
         >

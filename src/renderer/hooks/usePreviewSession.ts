@@ -7,6 +7,7 @@ import type {
 } from '@shared/contracts';
 import { DEFAULT_PREVIEW } from '../app/defaults';
 import { getErrorMessage, isPreviewSupersededError } from '../app/ipc-errors';
+import type { Translate } from '../i18n';
 
 export type PreviewSessionApi = Pick<
   AdvancedRenamerApi,
@@ -24,7 +25,7 @@ export interface UsePreviewSessionOptions {
   /** Current request. Must be referentially stable while its inputs do not change (useMemo). */
   request: AppPreviewRequest;
   api: PreviewSessionApi;
-  t: (key: string, vars?: Record<string, unknown>) => string;
+  t: Translate;
   /** Called after a fully successful rename (the app clears its sources). */
   onRenamed: () => void;
   /** Called after execute/undo so presets/history can be reloaded. */
@@ -185,7 +186,7 @@ export function usePreviewSession({
       }
       await optionsRef.current.onMetadataChanged();
     } catch (error) {
-      setActionError(getErrorMessage(error));
+      setActionError(getErrorMessage(error, translate('error.rename')));
       // The filesystem may no longer match the preview (e.g. a source disappeared): regenerate.
       refreshAfter = true;
       setShown((current) => (current ? { ...current, stale: true } : current));
@@ -220,7 +221,7 @@ export function usePreviewSession({
         }
         await optionsRef.current.onMetadataChanged();
       } catch (error) {
-        setActionError(getErrorMessage(error));
+        setActionError(getErrorMessage(error, optionsRef.current.t('error.undo')));
       } finally {
         mutatingRef.current = false;
         setMutation('idle');

@@ -73,7 +73,7 @@ export function sortSourceSelections(sources: SourceSelection[], sortMode: SortM
 
 export function getSelectedLabel(sources: SourceSelection[], t: ReturnType<typeof useI18n>['t']) {
   if (sources.length === 0) {
-    return t('selected.none');
+    return t('selected.items', { count: 0 });
   }
 
   if (sources.every((source) => source.isDirectory)) {

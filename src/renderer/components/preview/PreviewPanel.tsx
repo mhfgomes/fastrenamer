@@ -70,7 +70,7 @@ export const PreviewPanel = memo(function PreviewPanel({
                       : 'border-border bg-surface text-muted-foreground hover:border-border/80',
                   )}
                 >
-                  {status} {statusCounts[status]}
+                  {t(`preview.status.${status}`)} {statusCounts[status]}
                 </button>
               );
             })}
@@ -121,7 +121,7 @@ export const PreviewPanel = memo(function PreviewPanel({
                   className="border-b border-border/40 transition-colors hover:bg-surface/60"
                 >
                   <td className="px-4 py-2.5 whitespace-nowrap">
-                    <Badge dot tone={row.status}>{row.status}</Badge>
+                    <Badge dot tone={row.status}>{t(`preview.status.${row.status}`)}</Badge>
                   </td>
                   <td className="px-4 py-2.5 font-mono text-xs break-all text-muted-foreground">
                     {row.originalName}

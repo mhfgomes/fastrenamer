@@ -5,7 +5,8 @@ const ERROR_NAME_PREFIX = /^(?:[A-Z]\w*)?Error:\s*/;
  * Errors thrown in the main process reach the renderer as
  * `Error invoking remote method 'x': SomeError: message`. Strip the transport noise.
  */
-export function getErrorMessage(error: unknown, fallback = 'Unknown error.') {
+/** `fallback` must be a localized message; it is shown when the error carries no text. */
+export function getErrorMessage(error: unknown, fallback: string) {
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
   const message = raw.replace(REMOTE_PREFIX, '').replace(ERROR_NAME_PREFIX, '').trim();
   return message || fallback;

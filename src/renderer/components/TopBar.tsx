@@ -19,6 +19,7 @@ import type { WindowState } from '@shared/contracts';
 import { APP_VERSION, SORT_MODE_OPTIONS } from '../constants';
 import type { useI18n } from '../i18n';
 import type { AppTheme } from '../themes';
+import { getThemeName } from '../app/theme-labels';
 import {
   Badge,
   Button,
@@ -223,7 +224,7 @@ export function TopBar({
 
           <DropdownMenuRoot>
             <DropdownMenuTrigger asChild>
-              <IconButton aria-label={t('topbar.choose_theme_aria', { themeName: theme.name })}>
+              <IconButton aria-label={t('topbar.choose_theme_aria', { themeName: getThemeName(theme, t) })}>
                 <Palette className="h-4 w-4" />
               </IconButton>
             </DropdownMenuTrigger>
@@ -237,7 +238,7 @@ export function TopBar({
                     style={{ backgroundColor: candidate.tokens.accent }}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium">{candidate.name}</div>
+                    <div className="font-medium">{getThemeName(candidate, t)}</div>
                     <div className="text-xs text-muted-foreground">
                       {candidate.kind === 'custom' ? t('topbar.theme_custom') : t('topbar.theme_preset')}
                     </div>

@@ -271,7 +271,7 @@ export const en = {
   'updates.summary.checking': 'Checking GitHub Releases for a newer version.',
   'updates.summary.available_manual': 'Version {version} is available to download from GitHub Releases.',
   'updates.summary.available_auto': 'Version {version} is available and downloading in the background.',
-  'updates.summary.downloading_with_progress': '{percent}% downloaded ({transferred} of {total}).',
+  'updates.summary.downloading_with_progress': '{percent} downloaded ({transferred} of {total}).',
   'updates.summary.downloading': 'Downloading the latest release in the background.',
   'updates.summary.downloaded': 'Version {version} is ready. Restart the app to install it.',
   'updates.summary.up_to_date_manual': 'This installation matches the latest published release. Future updates will open GitHub for a manual download.',
@@ -283,7 +283,7 @@ export const en = {
   'updates.current': 'current {version}',
   'updates.latest': 'latest {version}',
   'updates.checked': 'checked {date}',
-  'updates.speed': '{percent}% at {speed}/s',
+  'updates.speed': '{percent} at {speed}/s',
   'updates.check_now': 'Check now',
   'updates.download': 'Download update',
   'updates.restart_install': 'Restart to install',
@@ -365,13 +365,49 @@ export const en = {
   'error.save_preset': 'Unable to save the preset.',
   'error.delete_preset': 'Unable to delete the preset.',
   'error.load_metadata': 'Unable to load presets and history.',
-  'selected.none': '0 selected',
   'selected.folders.one': '{count} folder selected',
   'selected.folders.other': '{count} folders selected',
   'selected.files.one': '{count} file selected',
   'selected.files.other': '{count} files selected',
   'selected.items.one': '{count} item selected',
   'selected.items.other': '{count} items selected',
+
+  'common.close': 'Close',
+  'layout.resize_panels': 'Resize the rules and preview panels',
+  'rules.enable': 'Enable step {count}: {rule}',
+  'rules.move_up_aria': 'Move step {count} up: {rule}',
+  'rules.move_down_aria': 'Move step {count} down: {rule}',
+  'rules.delete_aria': 'Delete step {count}: {rule}',
+  'editor.new_name.label': 'Name template',
+  'editor.custom.label': 'Expression',
+  'editor.date_format.label': 'Date format',
+  'editor.case.label': 'Case',
+  'editor.trim.label': 'Trim mode',
+  'editor.position.label': 'Position',
+  'editor.letter_case.label': 'Letter case',
+  'editor.extension.label': 'Extension handling',
+  'editor.extension.replacement': 'New extension',
+  'editor.custom.example.snake_sequence': 'Snake + sequence',
+  'editor.custom.example.parent_prefix': 'Parent prefix',
+  'editor.custom.example.camera_import': 'Conditional camera import',
+  'preview.filter_label': 'Filter by status',
+  'preview.status.ok': 'OK',
+  'preview.status.conflict': 'Conflict',
+  'preview.status.invalid': 'Invalid',
+  'preview.status.unchanged': 'Unchanged',
+  'presets.name.label': 'Preset name',
+  'appearance.copy_theme': 'Copy {name}',
+  'theme.preset.dark.name': 'Dark',
+  'theme.preset.light.name': 'Light',
+  'theme.copy_name': '{name} Copy',
+  'theme.custom.based_on': 'Custom theme based on {name}.',
+  'theme.custom.fallback_description': 'User-created theme.',
+  'updates.version_unknown': 'unknown',
+  'error.rename': 'Unable to rename the files.',
+  'error.undo': 'Unable to undo the rename.',
+  'error_boundary.title': 'Something went wrong',
+  'error_boundary.description': 'Fast Renamer hit an unexpected error. Reload the app to continue.',
+  'error_boundary.reload': 'Reload app',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -379,6 +415,9 @@ export type TranslationKey = keyof typeof en;
 /** Base keys of plural messages, e.g. `sources.roots` for `sources.roots.one` / `.other`. */
 type PluralBase<K> = K extends `${infer Base}.other` ? Base : never;
 export type PluralBaseKey = PluralBase<TranslationKey>;
+
+/** Keys accepted by `t()`: plain keys plus plural base keys (not their `.one`/`.other` variants). */
+export type MessageKey = Exclude<TranslationKey, `${PluralBaseKey}.${'one' | 'other'}`> | PluralBaseKey;
 
 /**
  * Every locale must translate exactly the keys defined in `en`. Languages whose plural rules
