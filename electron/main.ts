@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
 import { compareNatural } from '@fastrenamer/rename-engine';
-import type { IpcMainInvokeEvent, OpenDialogOptions, SaveDialogOptions } from 'electron';
+import type { IpcMainInvokeEvent, OpenDialogOptions, SaveDialogOptions, WebContents } from 'electron';
 import {
   pickSourcesRequestSchema,
   executeRenameBatchRequestSchema,
@@ -14,6 +14,7 @@ import {
   savePresetRequestSchema,
   renamePresetRequestSchema,
   deletePresetRequestSchema,
+  exportPresetRequestSchema,
 } from '../src/shared/contracts';
 import type { PresetTransferEntry } from '../src/shared/contracts';
 import type { AppPreviewRequest, StartupNotice } from '../src/shared/contracts';
@@ -30,11 +31,19 @@ import type { ServicePreviewRequest } from './rename-service';
 import { createWorkerPlanner } from './preview-worker-client';
 import { recoverInterruptedRenames } from './rename-journal';
 import { AppUpdaterManager } from './updater';
+import { buildDevelopmentCsp } from './csp';
+import { createAppUrlPolicy, isAllowedAppUrl, isTrustedIpcSender } from './security';
+import type { AppUrlPolicy } from './security';
 
 let mainWindow: BrowserWindow | null = null;
 let database: AppDatabase;
 let updater: AppUpdaterManager;
+let appUrlPolicy: AppUrlPolicy;
 const mainDir = path.dirname(fileURLToPath(import.meta.url));
+
+function getRendererIndexPath() {
+  return path.join(app.getAppPath(), 'dist-renderer/index.html');
+}
 
 const getPlatform = () => process.platform as 'darwin' | 'win32' | 'linux';
 const startupNotices: StartupNotice[] = [];
@@ -142,7 +151,6 @@ function showOpenPresetDialog(event: IpcMainInvokeEvent) {
 
 function resolvePreloadPath() {
   const candidates = [
-    path.join(mainDir, 'preload.mjs'),
     path.join(mainDir, 'preload.cjs'),
     path.join(mainDir, 'preload.js'),
   ];
@@ -155,23 +163,16 @@ function resolvePreloadPath() {
   return resolved;
 }
 
-function applyContentSecurityPolicy() {
+function applyDevelopmentContentSecurityPolicy() {
+  // Production builds ship a strict, hash-based CSP <meta> tag in index.html
+  // (see electron/csp.ts + vite.config.ts). The dev server needs a relaxed
+  // policy for React Refresh and HMR, which is applied here as a header.
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
-  const connectSrc = devServerUrl
-    ? "'self' ws: wss: http://localhost:* https://github.com"
-    : "'self' https://github.com";
+  if (!devServerUrl) {
+    return;
+  }
 
-  const policy = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    `connect-src ${connectSrc}`,
-    "img-src 'self' data:",
-    "font-src 'self'",
-    "object-src 'none'",
-    "base-uri 'self'",
-  ].join('; ');
-
+  const policy = buildDevelopmentCsp(devServerUrl);
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
@@ -180,6 +181,24 @@ function applyContentSecurityPolicy() {
       },
     });
   });
+}
+
+function hardenWebContents(contents: WebContents) {
+  const blockUnlessAppUrl = (event: Electron.Event, url: string) => {
+    if (!isAllowedAppUrl(url, appUrlPolicy)) {
+      event.preventDefault();
+      console.warn(`Blocked navigation to ${url}`);
+    }
+  };
+
+  contents.on('will-navigate', (event) => blockUnlessAppUrl(event, event.url));
+  contents.on('will-frame-navigate', (event) => blockUnlessAppUrl(event, event.url));
+  contents.on('will-redirect', (event) => blockUnlessAppUrl(event, event.url));
+  contents.on('will-attach-webview', (event) => {
+    event.preventDefault();
+  });
+  // The renderer has no external links; never open new windows.
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
 }
 
 function createWindow() {
@@ -208,6 +227,10 @@ function createWindow() {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      nodeIntegrationInSubFrames: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false,
       preload: preloadPath,
     },
   });
@@ -227,11 +250,31 @@ function createWindow() {
   if (devServerUrl) {
     void window.loadURL(devServerUrl);
   } else {
-    void window.loadFile(path.join(app.getAppPath(), 'dist-renderer/index.html'));
+    void window.loadFile(getRendererIndexPath());
   }
 }
 
+/**
+ * Wraps ipcMain so every handler first verifies the sender is the main
+ * window's top-level frame showing the app's own URL.
+ */
+function createTrustedIpcMain() {
+  return {
+    handle(channel: string, listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown) {
+      ipcMain.handle(channel, (event, ...args) => {
+        if (!isTrustedIpcSender(event, mainWindow, appUrlPolicy)) {
+          throw new Error(`Rejected IPC call to "${channel}" from an untrusted sender.`);
+        }
+        return listener(event, ...args);
+      });
+    },
+  };
+}
+
 function registerIpc() {
+  // Shadows electron's ipcMain on purpose: all handlers below are sender-checked.
+  const ipcMain = createTrustedIpcMain();
+
   ipcMain.handle('pickSources', async (_event, payload) => {
     const request = pickSourcesRequestSchema.parse(payload);
     const shouldPickDirectories =
@@ -308,7 +351,8 @@ function registerIpc() {
     return exportPresetTransferFile(event, presets);
   });
 
-  ipcMain.handle('exportUserPreset', async (event, presetId: number) => {
+  ipcMain.handle('exportUserPreset', async (event, payload) => {
+    const presetId = exportPresetRequestSchema.parse(payload);
     const preset = database.getUserPresetTransfer(presetId);
     const defaultFilename = `fast-renamer-${sanitizeExportFilename(preset.name)}.json`;
     return exportPresetTransferFile(event, [preset], defaultFilename);
@@ -402,7 +446,11 @@ function openDatabaseOrQuit() {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
-  applyContentSecurityPolicy();
+  appUrlPolicy = createAppUrlPolicy({
+    devServerUrl: process.env.VITE_DEV_SERVER_URL,
+    indexPath: getRendererIndexPath(),
+  });
+  applyDevelopmentContentSecurityPolicy();
   const openedDatabase = openDatabaseOrQuit();
   if (!openedDatabase) {
     return;
@@ -419,6 +467,10 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
+});
+
+app.on('web-contents-created', (_event, contents) => {
+  hardenWebContents(contents);
 });
 
 app.on('window-all-closed', () => {
