@@ -1,55 +1,39 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { en } from './locales/en';
+import { createI18nRuntime, type LocaleRegistryEntry, type TranslationVars } from './i18n-core';
+import { en, type LocaleDict } from './locales/en';
 import { de } from './locales/de';
 import { es } from './locales/es';
 import { fr } from './locales/fr';
 import { it } from './locales/it';
 import { ptPT } from './locales/pt-PT';
-import { DEFAULT_LOCALE, resolveNavigatorLocale, resolveStoredLocale, type AppLocale } from '@shared/i18n-locale';
 
-export type { AppLocale } from '@shared/i18n-locale';
-export { DEFAULT_LOCALE, resolveNavigatorLocale, resolveStoredLocale } from '@shared/i18n-locale';
+/**
+ * The one place to register a locale. Adding an entry here is all that is needed:
+ * the `AppLocale` type, the language picker (`AVAILABLE_LOCALES`), stored-locale
+ * validation and navigator-language detection are all derived from it.
+ */
+export const LOCALE_REGISTRY = {
+  en: { dict: en, label: 'English', nativeLabel: 'English', navigatorPrefixes: ['en'] },
+  de: { dict: de, label: 'German', nativeLabel: 'Deutsch', navigatorPrefixes: ['de'] },
+  es: { dict: es, label: 'Spanish', nativeLabel: 'Español', navigatorPrefixes: ['es'] },
+  fr: { dict: fr, label: 'French', nativeLabel: 'Français', navigatorPrefixes: ['fr'] },
+  it: { dict: it, label: 'Italian', nativeLabel: 'Italiano', navigatorPrefixes: ['it'] },
+  'pt-PT': { dict: ptPT, label: 'Portuguese (Portugal)', nativeLabel: 'Português (Portugal)', navigatorPrefixes: ['pt'] },
+} as const satisfies Record<string, LocaleRegistryEntry<LocaleDict>>;
 
-type TranslationValue = string | ((vars?: Record<string, unknown>) => string);
-type TranslationDict = Record<string, TranslationValue>;
+export type AppLocale = keyof typeof LOCALE_REGISTRY;
+
+export const DEFAULT_LOCALE: AppLocale = 'en';
+
+const runtime = createI18nRuntime<AppLocale>(LOCALE_REGISTRY, DEFAULT_LOCALE);
+const translate = runtime.translate;
+
+export const isAppLocale = runtime.isLocale;
+export const resolveStoredLocale = runtime.resolveStoredLocale;
+export const resolveNavigatorLocale = runtime.resolveNavigatorLocale;
+export const AVAILABLE_LOCALES = runtime.availableLocales;
 
 const STORAGE_KEY = 'app_locale';
-
-const TRANSLATIONS: Record<AppLocale, TranslationDict> = {
-  de,
-  en,
-  es,
-  fr,
-  it,
-  'pt-PT': ptPT,
-};
-
-const LOCALE_METADATA: Record<AppLocale, { label: string; nativeLabel: string }> = {
-  de: { label: 'German', nativeLabel: 'Deutsch' },
-  en: { label: 'English', nativeLabel: 'English' },
-  es: { label: 'Spanish', nativeLabel: 'Espanol' },
-  fr: { label: 'French', nativeLabel: 'Francais' },
-  it: { label: 'Italian', nativeLabel: 'Italiano' },
-  'pt-PT': { label: 'Portuguese (Portugal)', nativeLabel: 'Portugues (Portugal)' },
-};
-
-export const AVAILABLE_LOCALES: Array<{ code: AppLocale; label: string; nativeLabel: string }> = [
-  { code: DEFAULT_LOCALE, ...LOCALE_METADATA[DEFAULT_LOCALE] },
-  ...((Object.keys(TRANSLATIONS) as AppLocale[])
-    .filter((locale) => locale !== DEFAULT_LOCALE)
-    .map((code) => ({ code, ...LOCALE_METADATA[code] }))),
-];
-
-function interpolate(template: string, vars?: Record<string, unknown>) {
-  if (!vars) {
-    return template;
-  }
-
-  return template.replace(/\{(\w+)\}/g, (_, key) => {
-    const value = vars[key];
-    return value === undefined || value === null ? `{${key}}` : String(value);
-  });
-}
 
 function detectInitialLocale(): AppLocale {
   const stored = resolveStoredLocale(localStorage.getItem(STORAGE_KEY));
@@ -57,13 +41,18 @@ function detectInitialLocale(): AppLocale {
     return stored;
   }
 
-  return resolveNavigatorLocale(navigator.language);
+  return resolveNavigatorLocale(navigator.languages?.length ? navigator.languages : navigator.language);
 }
 
 interface I18nContextValue {
   locale: AppLocale;
   setLocale: (locale: AppLocale) => void;
-  t: (key: string, vars?: Record<string, unknown>) => string;
+  /**
+   * Translates `key`, interpolating `{placeholders}` from `vars`. When `vars.count` is
+   * given and the dictionary defines plural variants (`key.one`, `key.other`, ...),
+   * the right form for the active locale is chosen automatically.
+   */
+  t: (key: string, vars?: TranslationVars) => string;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -79,21 +68,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value = useMemo<I18nContextValue>(() => ({
     locale,
     setLocale,
-    t(key, vars) {
-      const current = TRANSLATIONS[locale][key] ?? TRANSLATIONS.en[key];
-      const fallback = TRANSLATIONS[DEFAULT_LOCALE][key];
-      if (!current && !fallback) {
-        return key;
-      }
-
-      const resolved = current ?? fallback;
-
-      if (typeof resolved === 'function') {
-        return resolved(vars);
-      }
-
-      return interpolate(resolved, vars);
-    },
+    t: (key, vars) => translate(locale, key, vars),
   }), [locale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

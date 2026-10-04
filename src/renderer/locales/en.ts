@@ -1,13 +1,15 @@
-const plural = (count: number, singular: string, pluralForm: string) =>
-  `${count} ${count === 1 ? singular : pluralForm}`;
-
-const value = (vars: Record<string, unknown> | undefined, key: string) => vars?.[key];
-
+/**
+ * Source-of-truth English dictionary. Every other locale must define exactly these keys.
+ *
+ * - `{name}` placeholders are interpolated from `t(key, { name })`.
+ * - Keys ending in `.one` / `.other` (or `.zero`, `.two`, `.few`, `.many`) are plural
+ *   variants; call them as `t('base.key', { count })` and the right form is picked with
+ *   `Intl.PluralRules`, falling back to `.other`. English only needs `.one` and `.other`;
+ *   other locales may add the extra categories their language uses.
+ */
 export const en = {
   'locale.label': 'Language',
   'locale.helper': 'Switch the app language. Community translations live in src/renderer/locales.',
-  'locale.option.en': 'English',
-  'locale.option.pt-PT': 'Portuguese (Portugal)',
 
   'app.drop.title': 'Drop files or folders to add sources',
   'app.drop.description': 'Fast Renamer will use the dropped items as the current source roots.',
@@ -65,7 +67,7 @@ export const en = {
   'new_name.starter.folder': 'Folder + number',
   'new_name.starter.date': 'Date + number',
 
-  'topbar.tagline': (vars?: Record<string, unknown>) => `v${value(vars, 'version')} · batch rename`,
+  'topbar.tagline': 'v{version} · batch rename',
   'topbar.add': 'Add',
   'topbar.clear': 'Clear',
   'topbar.presets': 'Presets',
@@ -77,7 +79,7 @@ export const en = {
   'topbar.themes': 'Themes',
   'topbar.theme_custom': 'Custom',
   'topbar.theme_preset': 'Preset',
-  'topbar.choose_theme_aria': (vars?: Record<string, unknown>) => `Choose theme. Current theme: ${value(vars, 'themeName') ?? ''}`,
+  'topbar.choose_theme_aria': 'Choose theme. Current theme: {themeName}',
   'topbar.minimize': 'Minimize',
   'topbar.minimize_window': 'Minimize window',
   'topbar.restore_down': 'Restore down',
@@ -86,10 +88,14 @@ export const en = {
   'topbar.maximize_window': 'Maximize window',
   'topbar.close': 'Close',
   'topbar.close_window': 'Close window',
-  'topbar.status.ok': (vars?: Record<string, unknown>) => `${value(vars, 'count')} ok`,
-  'topbar.status.conflicts': (vars?: Record<string, unknown>) => `${value(vars, 'count')} conflicts`,
-  'topbar.status.invalid': (vars?: Record<string, unknown>) => `${value(vars, 'count')} invalid`,
-  'topbar.status.unchanged': (vars?: Record<string, unknown>) => `${value(vars, 'count')} unchanged`,
+  'topbar.status.ok.one': '{count} ok',
+  'topbar.status.ok.other': '{count} ok',
+  'topbar.status.conflicts.one': '{count} conflict',
+  'topbar.status.conflicts.other': '{count} conflicts',
+  'topbar.status.invalid.one': '{count} invalid',
+  'topbar.status.invalid.other': '{count} invalid',
+  'topbar.status.unchanged.one': '{count} unchanged',
+  'topbar.status.unchanged.other': '{count} unchanged',
   'topbar.busy.preview': 'Generating preview...',
   'topbar.busy.execute': 'Renaming...',
   'topbar.busy.undo': 'Undoing...',
@@ -113,7 +119,7 @@ export const en = {
   'rules.type': 'Rule type',
   'rules.empty': 'No rules yet. Add one with the button above.',
   'rules.drag': 'Drag to reorder rule',
-  'rules.step': (vars?: Record<string, unknown>) => `Step ${value(vars, 'count')}`,
+  'rules.step': 'Step {count}',
   'rules.move_up': 'Move up',
   'rules.move_down': 'Move down',
   'rules.expand': 'Expand rule',
@@ -182,17 +188,18 @@ export const en = {
   'sources.filter.help_unsupported': 'Filters are only used when the source set targets files.',
   'sources.sort': 'Sort Order',
   'sources.sort.help': 'Controls preview order, sequence numbering, and execution order.',
-  'sources.sort.badge': (vars?: Record<string, unknown>) => `Sort: ${value(vars, 'mode') ?? ''}`,
+  'sources.sort.badge': 'Sort: {mode}',
   'sources.sort_mode.natural_path': 'Natural Path',
   'sources.sort_mode.alphabetic_path': 'Alphabetic Path',
   'sources.sort_mode.name_only': 'Name Only',
   'sources.sort_mode.folder_then_name': 'Folder Then Name',
   'sources.current': 'Current source set',
   'sources.dropped': 'Dropped items',
-  'sources.roots': (vars?: Record<string, unknown>) => `${value(vars, 'count')} picked roots`,
+  'sources.roots.one': '{count} picked root',
+  'sources.roots.other': '{count} picked roots',
   'sources.folder': 'folder',
   'sources.file': 'file',
-  'sources.remove': (vars?: Record<string, unknown>) => `Remove ${value(vars, 'name') ?? ''}`,
+  'sources.remove': 'Remove {name}',
   'common.cancel': 'Cancel',
 
   'presets.title': 'Presets',
@@ -207,22 +214,27 @@ export const en = {
   'presets.empty': 'No presets yet.',
   'presets.import': 'Import',
   'presets.export': 'Export',
-  'presets.imported': (vars?: Record<string, unknown>) => `Imported ${plural(Number(value(vars, 'count') ?? 0), 'preset', 'presets')}.`,
-  'presets.exported': (vars?: Record<string, unknown>) => `Exported ${plural(Number(value(vars, 'count') ?? 0), 'preset', 'presets')}.`,
+  'presets.imported.one': 'Imported {count} preset.',
+  'presets.imported.other': 'Imported {count} presets.',
+  'presets.exported.one': 'Exported {count} preset.',
+  'presets.exported.other': 'Exported {count} presets.',
   'presets.sample': 'sample',
   'presets.saved': 'saved',
   'presets.load': 'Load',
   'presets.edit_name': 'Edit name',
   'presets.rename': 'Rename preset',
   'common.delete': 'Delete',
-  'presets.rules_count': (vars?: Record<string, unknown>) => plural(Number(value(vars, 'count') ?? 0), 'rule', 'rules'),
+  'presets.rules_count.one': '{count} rule',
+  'presets.rules_count.other': '{count} rules',
 
   'history.title': 'Rename History',
   'history.description': 'Completed batches stored for auditability and one-click undo.',
   'history.empty': 'No rename batches recorded yet.',
-  'history.batch': (vars?: Record<string, unknown>) => `Batch #${value(vars, 'id')}`,
-  'history.renamed': (vars?: Record<string, unknown>) => `${value(vars, 'count')} renamed`,
-  'history.blocked': (vars?: Record<string, unknown>) => `${value(vars, 'count')} blocked`,
+  'history.batch': 'Batch #{id}',
+  'history.renamed.one': '{count} renamed',
+  'history.renamed.other': '{count} renamed',
+  'history.blocked.one': '{count} blocked',
+  'history.blocked.other': '{count} blocked',
   'history.no_template': 'This batch does not have a reusable template saved.',
   'history.reuse': 'Reuse template',
   'history.undo': 'Undo',
@@ -256,21 +268,21 @@ export const en = {
   'updates.channel.helper_ea': 'Early Access installs follow every merge to main and may include unfinished changes.',
   'updates.summary.disabled': 'Install a packaged GitHub release to enable automatic updates.',
   'updates.summary.checking': 'Checking GitHub Releases for a newer version.',
-  'updates.summary.available_manual': (vars?: Record<string, unknown>) => `Version ${value(vars, 'version') ?? 'unknown'} is available to download from GitHub Releases.`,
-  'updates.summary.available_auto': (vars?: Record<string, unknown>) => `Version ${value(vars, 'version') ?? 'unknown'} is available and downloading in the background.`,
-  'updates.summary.downloading_with_progress': (vars?: Record<string, unknown>) => `${value(vars, 'percent')}% downloaded (${value(vars, 'transferred')} of ${value(vars, 'total')}).`,
+  'updates.summary.available_manual': 'Version {version} is available to download from GitHub Releases.',
+  'updates.summary.available_auto': 'Version {version} is available and downloading in the background.',
+  'updates.summary.downloading_with_progress': '{percent}% downloaded ({transferred} of {total}).',
   'updates.summary.downloading': 'Downloading the latest release in the background.',
-  'updates.summary.downloaded': (vars?: Record<string, unknown>) => `Version ${value(vars, 'version') ?? 'unknown'} is ready. Restart the app to install it.`,
+  'updates.summary.downloaded': 'Version {version} is ready. Restart the app to install it.',
   'updates.summary.up_to_date_manual': 'This installation matches the latest published release. Future updates will open GitHub for a manual download.',
   'updates.summary.up_to_date': 'This installation already matches the latest published release.',
   'updates.summary.installing': 'Closing the app to install the downloaded update.',
   'updates.summary.error': 'The app could not complete the update check.',
   'updates.summary.idle_manual': 'This build checks for updates, but installs must be downloaded manually from GitHub Releases.',
   'updates.summary.idle': 'Automatic updates are enabled for packaged releases.',
-  'updates.current': (vars?: Record<string, unknown>) => `current ${value(vars, 'version')}`,
-  'updates.latest': (vars?: Record<string, unknown>) => `latest ${value(vars, 'version')}`,
-  'updates.checked': (vars?: Record<string, unknown>) => `checked ${value(vars, 'date')}`,
-  'updates.speed': (vars?: Record<string, unknown>) => `${value(vars, 'percent')}% at ${value(vars, 'speed')}/s`,
+  'updates.current': 'current {version}',
+  'updates.latest': 'latest {version}',
+  'updates.checked': 'checked {date}',
+  'updates.speed': '{percent}% at {speed}/s',
   'updates.check_now': 'Check now',
   'updates.download': 'Download update',
   'updates.restart_install': 'Restart to install',
@@ -292,15 +304,15 @@ export const en = {
   'appearance.base.dark': 'dark',
   'appearance.base.light': 'light',
 
-  'platform_rules.description': (vars?: Record<string, unknown>) => `Preview validation uses ${value(vars, 'platform')} filename rules so conflicts and invalid names reflect the current machine.`,
+  'platform_rules.description': 'Preview validation uses {platform} filename rules so conflicts and invalid names reflect the current machine.',
   'execution_profile.description': 'Renderer runs sandboxed with a preload bridge. Filesystem writes only happen through validated batch execution and undo in the Electron main process.',
 
   'toast.update_found.title': 'Update found',
-  'toast.update_found.description_manual': (vars?: Record<string, unknown>) => `Version ${value(vars, 'version') ?? 'unknown'} is available on GitHub Releases for manual download.`,
-  'toast.update_found.description_auto': (vars?: Record<string, unknown>) => `Version ${value(vars, 'version') ?? 'unknown'} is downloading in the background.`,
+  'toast.update_found.description_manual': 'Version {version} is available on GitHub Releases for manual download.',
+  'toast.update_found.description_auto': 'Version {version} is downloading in the background.',
   'toast.open_settings': 'Open settings',
   'toast.update_ready.title': 'Update ready',
-  'toast.update_ready.description': (vars?: Record<string, unknown>) => `Version ${value(vars, 'version') ?? 'unknown'} is ready to install.`,
+  'toast.update_ready.description': 'Version {version} is ready to install.',
   'toast.restart_now': 'Restart now',
   'toast.update_failed.title': 'Update failed',
 
@@ -353,7 +365,25 @@ export const en = {
   'error.delete_preset': 'Unable to delete the preset.',
   'error.load_metadata': 'Unable to load presets and history.',
   'selected.none': '0 selected',
-  'selected.folders': (vars?: Record<string, unknown>) => `${plural(Number(value(vars, 'count') ?? 0), 'folder', 'folders')} selected`,
-  'selected.files': (vars?: Record<string, unknown>) => `${plural(Number(value(vars, 'count') ?? 0), 'file', 'files')} selected`,
-  'selected.items': (vars?: Record<string, unknown>) => `${plural(Number(value(vars, 'count') ?? 0), 'item', 'items')} selected`,
+  'selected.folders.one': '{count} folder selected',
+  'selected.folders.other': '{count} folders selected',
+  'selected.files.one': '{count} file selected',
+  'selected.files.other': '{count} files selected',
+  'selected.items.one': '{count} item selected',
+  'selected.items.other': '{count} items selected',
 } as const;
+
+export type TranslationKey = keyof typeof en;
+
+/** Base keys of plural messages, e.g. `sources.roots` for `sources.roots.one` / `.other`. */
+type PluralBase<K> = K extends `${infer Base}.other` ? Base : never;
+export type PluralBaseKey = PluralBase<TranslationKey>;
+
+/**
+ * Every locale must translate exactly the keys defined in `en`. Languages whose plural rules
+ * need more forms may additionally define `.zero`, `.two`, `.few` or `.many` variants of
+ * plural keys (see `Intl.PluralRules`).
+ */
+export type LocaleDict = Readonly<
+  Record<TranslationKey, string> & Partial<Record<`${PluralBaseKey}.${'zero' | 'two' | 'few' | 'many'}`, string>>
+>;
