@@ -111,7 +111,8 @@ export class AppUpdaterManager {
   private channel: UpdateChannel = this.state.channel;
   private interval: NodeJS.Timeout | null = null;
   private initialized = false;
-  private checking = false;
+  private inFlightCheck: Promise<void> | null = null;
+  private recheckQueued = false;
   private manualDownloadOnly = false;
   private manualDownloadMessage?: string;
 
@@ -271,6 +272,12 @@ export class AppUpdaterManager {
       });
     }
 
+    // A check that is already running was started against the previous
+    // channel; queue another one so the new channel is checked once it ends.
+    if (this.inFlightCheck) {
+      this.recheckQueued = true;
+    }
+
     return this.checkForUpdates();
   }
 
@@ -279,11 +286,24 @@ export class AppUpdaterManager {
       return this.state;
     }
 
-    if (this.checking) {
-      return this.state;
+    if (!this.inFlightCheck) {
+      this.inFlightCheck = this.runQueuedChecks().finally(() => {
+        this.inFlightCheck = null;
+      });
     }
 
-    this.checking = true;
+    await this.inFlightCheck;
+    return this.state;
+  }
+
+  private async runQueuedChecks() {
+    do {
+      this.recheckQueued = false;
+      await this.runCheck();
+    } while (this.recheckQueued);
+  }
+
+  private async runCheck() {
     try {
       await autoUpdater.checkForUpdates();
     } catch (error) {
@@ -298,11 +318,7 @@ export class AppUpdaterManager {
           : this.state.downloadUrl,
         message,
       });
-    } finally {
-      this.checking = false;
     }
-
-    return this.state;
   }
 
   quitAndInstall() {
