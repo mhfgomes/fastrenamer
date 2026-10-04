@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (this.state.error) {
       const { locale, t } = getStandaloneTranslator();
       return (
-        <div className="flex min-h-screen items-center justify-center bg-background p-8 text-foreground">
+        <div lang={locale} role="alert" className="flex min-h-screen items-center justify-center bg-background p-8 text-foreground">
           <div className="max-w-lg space-y-4 rounded-xl border border-border bg-card p-6 shadow-lg">
             <h1 className="text-xl font-semibold">{t('error_boundary.title')}</h1>
             <p className="text-sm text-muted-foreground">{t('error_boundary.description')}</p>

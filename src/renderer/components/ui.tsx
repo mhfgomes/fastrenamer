@@ -17,6 +17,7 @@ import type {
 import { forwardRef } from 'react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useI18n } from '../i18n';
 
 export function cn(...inputs: Array<string | false | null | undefined>) {
   return twMerge(clsx(inputs));
@@ -277,16 +278,21 @@ export function Switch({
   checked,
   onCheckedChange,
   label,
+  'aria-label': ariaLabel,
 }: {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  /** Visible label. */
   label?: string;
+  /** Accessible name when there is no visible label. */
+  'aria-label'?: string;
 }) {
   return (
     <label className="inline-flex cursor-pointer select-none items-center gap-2">
       <SwitchPrimitive.Root
         checked={checked}
         onCheckedChange={onCheckedChange}
+        aria-label={ariaLabel}
         className={cn(
           'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent',
           'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -488,6 +494,17 @@ export function DropdownMenuSeparator({ className }: { className?: string }) {
 
 // ─── Drawer ───────────────────────────────────────────────────────────────────
 
+function DialogCloseButton() {
+  const { t } = useI18n();
+  return (
+    <Dialog.Close asChild>
+      <IconButton aria-label={t('common.close')}>
+        <X className="h-4 w-4" aria-hidden="true" />
+      </IconButton>
+    </Dialog.Close>
+  );
+}
+
 export function Modal({
   open,
   onOpenChange,
@@ -517,11 +534,7 @@ export function Modal({
                 </Dialog.Description>
               )}
             </div>
-            <Dialog.Close asChild>
-              <IconButton>
-                <X className="h-4 w-4" />
-              </IconButton>
-            </Dialog.Close>
+            <DialogCloseButton />
           </div>
           <div className="max-h-[min(80vh,720px)] overflow-y-auto">{children}</div>
         </Dialog.Content>
@@ -559,11 +572,7 @@ export function Drawer({
                 </Dialog.Description>
               )}
             </div>
-            <Dialog.Close asChild>
-              <IconButton>
-                <X className="h-4 w-4" />
-              </IconButton>
-            </Dialog.Close>
+            <DialogCloseButton />
           </div>
           <div className="h-[calc(100vh-73px)] overflow-y-auto">{children}</div>
         </Dialog.Content>
@@ -640,15 +649,17 @@ export function ToastAction({
 }
 
 export function ToastClose({ className, ...props }: ToastPrimitive.ToastCloseProps) {
+  const { t } = useI18n();
   return (
     <ToastPrimitive.Close
+      aria-label={t('common.close')}
       className={cn(
         'absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground',
         className,
       )}
       {...props}
     >
-      <X className="h-4 w-4" />
+      <X className="h-4 w-4" aria-hidden="true" />
     </ToastPrimitive.Close>
   );
 }

@@ -283,23 +283,33 @@ export function RuleCard({
           <Switch
             checked={rule.enabled}
             onCheckedChange={(checked) => update({ enabled: checked })}
+            aria-label={t('rules.enable', { rule: meta.label, count: index + 1 })}
           />
           <Tooltip content={t('rules.move_up')}>
-            <IconButton className="h-7 w-7" onClick={() => onMove('up')}>
-              <ChevronUp className="h-3.5 w-3.5" />
+            <IconButton
+              className="h-7 w-7"
+              onClick={() => onMove('up')}
+              aria-label={t('rules.move_up_aria', { rule: meta.label, count: index + 1 })}
+            >
+              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
             </IconButton>
           </Tooltip>
           <Tooltip content={t('rules.move_down')}>
-            <IconButton className="h-7 w-7" onClick={() => onMove('down')}>
-              <ChevronDown className="h-3.5 w-3.5" />
+            <IconButton
+              className="h-7 w-7"
+              onClick={() => onMove('down')}
+              aria-label={t('rules.move_down_aria', { rule: meta.label, count: index + 1 })}
+            >
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
             </IconButton>
           </Tooltip>
           <Tooltip content={t('rules.delete')}>
             <IconButton
               className="h-7 w-7 text-destructive hover:bg-destructive/10"
               onClick={onDelete}
+              aria-label={t('rules.delete_aria', { rule: meta.label, count: index + 1 })}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             </IconButton>
           </Tooltip>
         </div>
@@ -354,6 +364,7 @@ export function NewNameRuleEditor({
           value={rule.template}
           onChange={(e) => update({ template: e.target.value })}
           placeholder={t('editor.new_name.placeholder')}
+          aria-label={t('editor.new_name.label')}
         />
         <p className="text-xs text-muted-foreground">
           {t('editor.new_name.help')}
@@ -459,6 +470,7 @@ export function CustomRuleEditor({
           value={rule.expression}
           onChange={(event) => update({ expression: event.target.value })}
           placeholder={t('editor.custom.placeholder')}
+          aria-label={t('editor.custom.label')}
           spellCheck={false}
           className={cn(
             'min-h-[120px] w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground outline-none',
@@ -543,11 +555,13 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
               value={rule.find}
               onChange={(e) => update({ find: e.target.value })}
               placeholder={t('editor.find.placeholder')}
+              aria-label={t('editor.find.placeholder')}
             />
             <Input
               value={rule.replace}
               onChange={(e) => update({ replace: e.target.value })}
               placeholder={t('editor.replace.placeholder')}
+              aria-label={t('editor.replace.placeholder')}
             />
           </div>
           <div className="flex flex-wrap gap-4">
@@ -577,11 +591,13 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.prefix}
             onChange={(e) => update({ prefix: e.target.value })}
             placeholder={t('editor.prefix.placeholder')}
+            aria-label={t('editor.prefix.placeholder')}
           />
           <Input
             value={rule.suffix}
             onChange={(e) => update({ suffix: e.target.value })}
             placeholder={t('editor.suffix.placeholder')}
+            aria-label={t('editor.suffix.placeholder')}
           />
         </div>
       );
@@ -592,7 +608,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
           value={rule.mode}
           onValueChange={(value) => update({ mode: value as typeof rule.mode })}
         >
-          <SelectTrigger>
+          <SelectTrigger aria-label={t('editor.case.label')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -614,7 +630,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
           value={rule.mode}
           onValueChange={(value) => update({ mode: value as typeof rule.mode })}
         >
-          <SelectTrigger>
+          <SelectTrigger aria-label={t('editor.trim.label')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -636,6 +652,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.text}
             onChange={(e) => update({ text: e.target.value })}
             placeholder={t('editor.remove.placeholder')}
+            aria-label={t('editor.remove.placeholder')}
           />
           <Checkbox
             checked={rule.matchCase}
@@ -652,7 +669,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.position}
             onValueChange={(value) => update({ position: value as typeof rule.position })}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label={t('editor.position.label')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -665,22 +682,26 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.separator}
             onChange={(e) => update({ separator: e.target.value })}
             placeholder={t('editor.separator.placeholder')}
+            aria-label={t('editor.separator.placeholder')}
           />
           <IntegerInput
             value={rule.start}
             onCommit={(start) => update({ start })}
             placeholder={t('editor.start.placeholder')}
+            aria-label={t('editor.start.placeholder')}
           />
           <IntegerInput
             value={rule.step}
             onCommit={(step) => update({ step })}
             placeholder={t('editor.step.placeholder')}
+            aria-label={t('editor.step.placeholder')}
           />
           <IntegerInput
             min={0}
             value={rule.padWidth}
             onCommit={(padWidth) => update({ padWidth })}
             placeholder={t('editor.pad.placeholder')}
+            aria-label={t('editor.pad.placeholder')}
           />
         </div>
       );
@@ -692,7 +713,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.position}
             onValueChange={(value) => update({ position: value as typeof rule.position })}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label={t('editor.position.label')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -705,7 +726,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.casing}
             onValueChange={(value) => update({ casing: value as typeof rule.casing })}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label={t('editor.letter_case.label')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -717,18 +738,21 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.separator}
             onChange={(e) => update({ separator: e.target.value })}
             placeholder={t('editor.separator.placeholder')}
+            aria-label={t('editor.separator.placeholder')}
           />
           <IntegerInput
             min={1}
             value={rule.start}
             onCommit={(start) => update({ start })}
             placeholder={t('editor.start.placeholder')}
+            aria-label={t('editor.start.placeholder')}
           />
           <IntegerInput
             min={1}
             value={rule.step}
             onCommit={(step) => update({ step })}
             placeholder={t('editor.step.placeholder')}
+            aria-label={t('editor.step.placeholder')}
           />
         </div>
       );
@@ -740,7 +764,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.position}
             onValueChange={(value) => update({ position: value as typeof rule.position })}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label={t('editor.position.label')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -753,11 +777,13 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.format}
             onChange={(e) => update({ format: e.target.value })}
             placeholder={t('editor.date_format.placeholder')}
+            aria-label={t('editor.date_format.label')}
           />
           <Input
             value={rule.separator}
             onChange={(e) => update({ separator: e.target.value })}
             placeholder={t('editor.separator.placeholder')}
+            aria-label={t('editor.separator.placeholder')}
           />
         </div>
       );
@@ -769,7 +795,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
             value={rule.mode}
             onValueChange={(value) => update({ mode: value as typeof rule.mode })}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label={t('editor.extension.label')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -785,6 +811,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
               value={rule.replacement}
               onChange={(e) => update({ replacement: e.target.value })}
               placeholder="jpg"
+              aria-label={t('editor.extension.replacement')}
             />
           )}
         </div>
@@ -811,11 +838,13 @@ function IntegerInput({
   min,
   onCommit,
   placeholder,
+  'aria-label': ariaLabel,
 }: {
   value: number;
   min?: number;
   onCommit: (value: number) => void;
   placeholder?: string;
+  'aria-label'?: string;
 }) {
   const [raw, setRaw] = useState(String(value));
   const [focused, setFocused] = useState(false);
@@ -847,6 +876,7 @@ function IntegerInput({
         if (parseIntegerInput(raw, min) === null) setRaw(String(value));
       }}
       placeholder={placeholder}
+      aria-label={ariaLabel}
     />
   );
 }

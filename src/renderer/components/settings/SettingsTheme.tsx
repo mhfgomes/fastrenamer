@@ -1,5 +1,5 @@
 import { ChevronDown, Copy } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Badge, Button, cn } from '../ui';
 import type { AppTheme } from '../../themes';
 import { useI18n } from '../../i18n';
@@ -28,12 +28,14 @@ export function SettingsSection({
   onToggle: () => void;
   children: ReactNode;
 }) {
+  const contentId = useId();
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
+        aria-controls={contentId}
         className="flex w-full items-start justify-between gap-3 text-left"
       >
         <div className="min-w-0">
@@ -52,8 +54,11 @@ export function SettingsSection({
         </div>
       </button>
 
+      {/* `inert` keeps collapsed content out of the tab order and the accessibility tree while
+          still letting the open/close animation run. */}
       <div
-        aria-hidden={!open}
+        id={contentId}
+        inert={!open}
         className={cn(
           'grid transition-[grid-template-rows,opacity] duration-200 ease-out',
           open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',

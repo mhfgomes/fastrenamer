@@ -115,6 +115,7 @@ export function PresetsDrawer({
                 if (e.key === 'Enter') submit();
               }}
               placeholder={t('presets.name.placeholder')}
+              aria-label={t('presets.name.label')}
             />
             <div className="flex gap-2">
               <Button onClick={submit}>
@@ -139,6 +140,7 @@ export function PresetsDrawer({
                   value={presetSearch}
                   onChange={(e) => setPresetSearch(e.target.value)}
                   placeholder={t('presets.search.placeholder')}
+                  aria-label={t('presets.search.placeholder')}
                 />
               </div>
               <div className="flex gap-2">

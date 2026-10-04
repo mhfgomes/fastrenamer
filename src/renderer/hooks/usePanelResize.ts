@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { LEFT_WIDTH_STORAGE_KEY } from '../app/defaults';
-import { clampLeftWidthRatio, readStoredLeftWidthRatio } from '../app/layout';
+import {
+  clampLeftWidthRatio,
+  getKeyboardResizeRatio,
+  getLeftWidthRatioBounds,
+  readStoredLeftWidthRatio,
+} from '../app/layout';
 
 const DESKTOP_QUERY = '(min-width: 1024px)';
 
 /**
  * Splitter between the rules and preview panels. While dragging, the left panel width is written
  * straight to the DOM (once per animation frame) so React does not re-render either panel; the
- * ratio is committed to state and persisted on mouseup.
+ * ratio is committed to state and persisted on mouseup. The splitter is also a focusable
+ * `role="separator"`: Arrow keys (Shift for larger steps), Home and End resize and persist.
  */
 export function usePanelResize() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -24,6 +30,7 @@ export function usePanelResize() {
   const frame = useRef<number | null>(null);
 
   const getContainerWidth = () => containerRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+  const [containerWidth, setContainerWidth] = useState(() => Math.max(window.innerWidth - 16, 1));
 
   useEffect(() => {
     const mq = window.matchMedia(DESKTOP_QUERY);
@@ -56,8 +63,11 @@ export function usePanelResize() {
     }
 
     function onWindowResize() {
-      setLeftWidthRatio((current) => clampLeftWidthRatio(current, getContainerWidth()));
+      const width = getContainerWidth();
+      setContainerWidth(width);
+      setLeftWidthRatio((current) => clampLeftWidthRatio(current, width));
     }
+    setContainerWidth(getContainerWidth());
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
@@ -85,5 +95,34 @@ export function usePanelResize() {
     [leftWidthRatio],
   );
 
-  return { containerRef, leftPanelRef, isDesktop, leftWidthRatio, onSplitterMouseDown };
+  const onSplitterKeyDown = useCallback(
+    (event: ReactKeyboardEvent) => {
+      const width = getContainerWidth();
+      const next = getKeyboardResizeRatio(event.key, event.shiftKey, leftWidthRatio, width);
+      if (next === null) return;
+      event.preventDefault();
+      setContainerWidth(width);
+      setLeftWidthRatio(next);
+      localStorage.setItem(LEFT_WIDTH_STORAGE_KEY, String(next));
+    },
+    [leftWidthRatio],
+  );
+
+  const { minRatio, maxRatio } = getLeftWidthRatioBounds(containerWidth);
+  /** ARIA values for the splitter, as whole percentages of the container width. */
+  const splitterAria = {
+    'aria-valuenow': Math.round(leftWidthRatio * 100),
+    'aria-valuemin': Math.round(minRatio * 100),
+    'aria-valuemax': Math.round(maxRatio * 100),
+  };
+
+  return {
+    containerRef,
+    leftPanelRef,
+    isDesktop,
+    leftWidthRatio,
+    splitterAria,
+    onSplitterMouseDown,
+    onSplitterKeyDown,
+  };
 }

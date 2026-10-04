@@ -14,6 +14,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
+import { useId } from 'react';
 import type { PlatformTarget, PreviewResult, SortMode } from '@fastrenamer/rename-engine';
 import type { WindowState } from '@shared/contracts';
 import { APP_VERSION, SORT_MODE_OPTIONS } from '../constants';
@@ -110,6 +111,7 @@ export function TopBar({
   onCloseWindow,
 }: TopBarProps) {
   const isMac = platform === 'darwin';
+  const sortLabelId = useId();
   const mutating = mutation !== 'idle';
   const topBarGhostButtonClassName =
     'border border-transparent hover:border-accent/30 hover:bg-surface-elevated hover:text-foreground';
@@ -166,7 +168,7 @@ export function TopBar({
 
         <div className="app-no-drag flex items-center gap-1.5">
           <div className="hidden lg:flex items-center gap-2 rounded-lg border border-border bg-surface/70 px-2 py-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <span id={sortLabelId} className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               {t('sources.sort')}
             </span>
             <Select
@@ -174,7 +176,7 @@ export function TopBar({
               disabled={mutating}
               onValueChange={(value) => onChangeSortMode(value as SortMode)}
             >
-              <SelectTrigger className="h-8 w-[170px] border-border/70 bg-card/80 px-2.5 text-xs shadow-none">
+              <SelectTrigger aria-labelledby={sortLabelId} className="h-8 w-[170px] border-border/70 bg-card/80 px-2.5 text-xs shadow-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="end">
