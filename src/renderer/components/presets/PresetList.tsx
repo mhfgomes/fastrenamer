@@ -10,8 +10,10 @@ export function PresetList({
   onExport,
   onDelete,
   emptyMessage,
+  loadDisabled = false,
 }: {
   presets: Preset[];
+  loadDisabled?: boolean;
   onLoad: (p: Preset) => void;
   onEdit: (p: Preset) => void;
   onExport?: (p: Preset) => void;
@@ -34,7 +36,7 @@ export function PresetList({
             </Badge>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => onLoad(preset)}>{t('presets.load')}</Button>
+            <Button size="sm" variant="secondary" disabled={loadDisabled} onClick={() => onLoad(preset)}>{t('presets.load')}</Button>
             <Button
               size="sm"
               variant="ghost"

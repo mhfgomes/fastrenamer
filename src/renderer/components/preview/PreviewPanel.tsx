@@ -1,20 +1,42 @@
+import { memo, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Badge, EmptyState, Panel, PanelHeader, cn } from '../ui';
 import type { PreviewResult } from '@fastrenamer/rename-engine/types';
 import { STATUS_OPTIONS, type StatusFilter } from '../../app/defaults';
 import { useI18n } from '../../i18n';
 
-export function PreviewPanel({
+const ESTIMATED_ROW_HEIGHT = 41;
+
+/**
+ * Memoized: only re-renders when the preview, the filters or the (stable) toggle callback change.
+ * Rows are virtualized so folders with tens of thousands of items stay responsive.
+ */
+export const PreviewPanel = memo(function PreviewPanel({
   preview,
-  rows,
   statusFilters,
   onToggleFilter,
 }: {
   preview: PreviewResult;
-  rows: PreviewResult['rows'];
   statusFilters: StatusFilter[];
   onToggleFilter: (s: StatusFilter) => void;
 }) {
   const { t } = useI18n();
+  const rows = useMemo(
+    () => preview.rows.filter((row) => statusFilters.includes(row.status)),
+    [preview.rows, statusFilters],
+  );
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    getItemKey: (index) => rows[index].id,
+    overscan: 12,
+  });
+  const virtualRows = virtualizer.getVirtualItems();
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+  const paddingBottom =
+    virtualRows.length > 0 ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
   const statusCounts: Record<StatusFilter, number> = {
     ok: preview.summary.ok,
     conflict: preview.summary.conflict,
@@ -61,8 +83,16 @@ export function PreviewPanel({
           <EmptyState message={t('preview.empty')} />
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="min-w-[700px] border-collapse text-left text-sm xl:min-w-full">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+          {/* Fixed layout: with virtualization only visible rows exist, so auto layout would make
+              column widths jump while scrolling. */}
+          <table className="w-full min-w-[700px] table-fixed border-collapse text-left text-sm">
+            <colgroup>
+              <col className="w-[120px]" />
+              <col className="w-[34%]" />
+              <col className="w-[34%]" />
+              <col />
+            </colgroup>
             <thead className="sticky top-0 z-10 border-b border-border bg-card">
               <tr>
                 {[t('preview.column.status'), t('preview.column.original'), t('preview.column.proposed'), t('preview.column.notes')].map((col) => (
@@ -76,20 +106,29 @@ export function PreviewPanel({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {paddingTop > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={4} style={{ height: paddingTop, padding: 0 }} />
+                </tr>
+              )}
+              {virtualRows.map((virtualRow) => {
+                const row = rows[virtualRow.index];
+                return (
                 <tr
-                  key={row.id}
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
                   className="border-b border-border/40 transition-colors hover:bg-surface/60"
                 >
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     <Badge dot tone={row.status}>{row.status}</Badge>
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                  <td className="px-4 py-2.5 font-mono text-xs break-all text-muted-foreground">
                     {row.originalName}
                   </td>
                   <td
                     className={cn(
-                      'px-4 py-2.5 font-mono text-xs font-medium',
+                      'px-4 py-2.5 font-mono text-xs font-medium break-all',
                       row.status === 'ok' && 'text-ok',
                       row.status === 'conflict' && 'text-conflict',
                       row.status === 'invalid' && 'text-invalid',
@@ -98,7 +137,10 @@ export function PreviewPanel({
                   >
                     {row.proposedName}
                   </td>
-                  <td className="max-w-xs px-4 py-2.5 text-xs text-muted-foreground truncate">
+                  <td
+                    className="px-4 py-2.5 text-xs text-muted-foreground truncate"
+                    title={row.reasons.length > 0 ? row.reasons.join(' ') : undefined}
+                  >
                     {row.reasons.length > 0
                       ? row.reasons.join(' ')
                       : row.changed
@@ -106,11 +148,17 @@ export function PreviewPanel({
                         : t('preview.no_change')}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
+              {paddingBottom > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={4} style={{ height: paddingBottom, padding: 0 }} />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       )}
     </Panel>
   );
-}
+});
