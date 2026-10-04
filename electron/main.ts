@@ -15,15 +15,19 @@ import {
   deletePresetRequestSchema,
 } from '../src/shared/contracts';
 import type { PresetTransferEntry } from '../src/shared/contracts';
-import { AppDatabase } from './db';
+import type { AppPreviewRequest, StartupNotice } from '../src/shared/contracts';
+import { AppDatabase, DatabaseVersionError, openAppDatabase } from './db';
 import {
+  createLatestPreviewRunner,
   executeRenameBatch,
-  generatePreviewForRequest,
   listHistoryWithUndoStatus,
   loadDirectoryListing,
   pickableSource,
   undoRenameBatch,
 } from './rename-service';
+import type { ServicePreviewRequest } from './rename-service';
+import { createWorkerPlanner } from './preview-worker-client';
+import { recoverInterruptedRenames } from './rename-journal';
 import { AppUpdaterManager } from './updater';
 
 let mainWindow: BrowserWindow | null = null;
@@ -32,6 +36,22 @@ let updater: AppUpdaterManager;
 const mainDir = path.dirname(fileURLToPath(import.meta.url));
 
 const getPlatform = () => process.platform as 'darwin' | 'win32' | 'linux';
+const startupNotices: StartupNotice[] = [];
+const previewPlanner = createWorkerPlanner(path.join(mainDir, 'preview-worker.js'));
+const runLatestPreview = createLatestPreviewRunner(previewPlanner);
+
+// The renderer's `platform` field is ignored: planning always uses the host platform.
+function toServiceRequest(request: AppPreviewRequest): ServicePreviewRequest {
+  return {
+    sourcePaths: request.sourcePaths,
+    sourceMode: request.sourceMode,
+    fileNamePattern: request.fileNamePattern,
+    sortMode: request.sortMode,
+    rules: request.rules,
+    includeHidden: request.includeHidden ?? false,
+    platform: getPlatform(),
+  };
+}
 const DEFAULT_WINDOW_STATE = { isMaximized: false };
 const PRESET_TRANSFER_VERSION = 1;
 
@@ -250,18 +270,22 @@ function registerIpc() {
 
   ipcMain.handle('generatePreview', async (_event, payload) => {
     const request = previewRequestSchema.parse(payload);
-    return generatePreviewForRequest(request);
+    return runLatestPreview(toServiceRequest(request));
   });
 
   ipcMain.handle('executeRenameBatch', async (_event, payload) => {
     const request = executeRenameBatchRequestSchema.parse(payload);
-    return executeRenameBatch(request, database);
+    return executeRenameBatch({ ...toServiceRequest(request), planId: request.planId }, database, {
+      planner: previewPlanner,
+    });
   });
 
   ipcMain.handle('undoRenameBatch', async (_event, payload) => {
     const request = undoRenameBatchRequestSchema.parse(payload);
-    return undoRenameBatch(request.batchId, getPlatform(), database);
+    return undoRenameBatch(request.batchId, getPlatform(), database, database);
   });
+
+  ipcMain.handle('getStartupNotices', () => startupNotices);
 
   ipcMain.handle('listPresets', () => database.listPresets());
 
@@ -351,10 +375,34 @@ function registerIpc() {
   });
 }
 
-app.whenReady().then(() => {
+function openDatabaseOrQuit() {
+  try {
+    const opened = openAppDatabase();
+    if (opened.notice) {
+      startupNotices.push({ level: 'warning', message: opened.notice });
+    }
+    return opened.database;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[db] Failed to open database', error);
+    dialog.showErrorBox(
+      error instanceof DatabaseVersionError ? 'Fast Renamer needs an update' : 'Fast Renamer cannot start',
+      message,
+    );
+    app.exit(1);
+    return null;
+  }
+}
+
+app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   applyContentSecurityPolicy();
-  database = new AppDatabase();
+  const openedDatabase = openDatabaseOrQuit();
+  if (!openedDatabase) {
+    return;
+  }
+  database = openedDatabase;
+  startupNotices.push(...(await recoverInterruptedRenames(getPlatform(), database)));
   updater = new AppUpdaterManager(() => mainWindow);
   registerIpc();
   createWindow();

@@ -12,6 +12,7 @@ const api: AdvancedRenamerApi = {
   generatePreview: (request) => ipcRenderer.invoke('generatePreview', request),
   executeRenameBatch: (request) => ipcRenderer.invoke('executeRenameBatch', request),
   undoRenameBatch: (request) => ipcRenderer.invoke('undoRenameBatch', request),
+  getStartupNotices: () => ipcRenderer.invoke('getStartupNotices'),
   listPresets: () => ipcRenderer.invoke('listPresets'),
   savePreset: (input) => ipcRenderer.invoke('savePreset', input),
   deletePreset: (id) => ipcRenderer.invoke('deletePreset', id),

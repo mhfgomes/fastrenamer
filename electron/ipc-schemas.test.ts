@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   deletePresetRequestSchema,
+  executeRenameBatchRequestSchema,
+  previewRequestSchema,
   pathListRequestSchema,
   savePresetRequestSchema,
 } from '../src/shared/contracts';
@@ -26,5 +28,19 @@ describe('IPC request schemas', () => {
     expect(deletePresetRequestSchema.parse(3)).toBe(3);
     expect(() => deletePresetRequestSchema.parse(0)).toThrow();
     expect(() => deletePresetRequestSchema.parse('1')).toThrow();
+  });
+
+  it('accepts preview requests without platform and with includeHidden', () => {
+    const base = { sourcePaths: ['/tmp/a'], sourceMode: 'files_recursive', fileNamePattern: '', sortMode: 'natural_path', rules: [] };
+    expect(previewRequestSchema.parse(base).includeHidden).toBeUndefined();
+    expect(previewRequestSchema.parse({ ...base, platform: 'win32', includeHidden: true }).includeHidden).toBe(true);
+    expect(() => previewRequestSchema.parse({ ...base, includeHidden: 'yes' })).toThrow();
+  });
+
+  it('requires the approved planId on execute', () => {
+    const base = { sourcePaths: ['/tmp/a'], sourceMode: 'picked_files', fileNamePattern: '', sortMode: 'natural_path', rules: [] };
+    expect(() => executeRenameBatchRequestSchema.parse(base)).toThrow();
+    expect(() => executeRenameBatchRequestSchema.parse({ ...base, planId: 'abc' })).toThrow();
+    expect(executeRenameBatchRequestSchema.parse({ ...base, planId: 'a'.repeat(64) }).planId).toBe('a'.repeat(64));
   });
 });

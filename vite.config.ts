@@ -21,7 +21,12 @@ export default defineConfig(({ mode }) => ({
       : [
           electron({
             main: {
-              entry: 'electron/main.ts',
+              // The preview worker is its own entry so main can spawn it from dist-electron
+              // (Electron's worker_threads load it fine from inside app.asar).
+              entry: {
+                main: 'electron/main.ts',
+                'preview-worker': 'electron/preview-worker.ts',
+              },
               vite: {
                 build: {
                   rollupOptions: {
