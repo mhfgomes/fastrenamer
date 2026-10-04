@@ -2,17 +2,62 @@ import { describe, expect, it } from 'vitest';
 import {
   deletePresetRequestSchema,
   executeRenameBatchRequestSchema,
-  previewRequestSchema,
+  exportPresetRequestSchema,
+  isAbsolutePathForPlatform,
   pathListRequestSchema,
+  previewRequestSchema,
   renamePresetRequestSchema,
   savePresetRequestSchema,
 } from '../src/shared/contracts';
+
+const absolutePath = process.platform === 'win32' ? 'C:\\tmp\\a' : '/tmp/a';
 
 describe('IPC request schemas', () => {
   it('validates path list requests', () => {
     expect(pathListRequestSchema.parse(['/tmp/a', '/tmp/b'])).toEqual(['/tmp/a', '/tmp/b']);
     expect(() => pathListRequestSchema.parse([])).toThrow();
     expect(() => pathListRequestSchema.parse([''])).toThrow();
+  });
+
+  it('rejects relative paths and NUL bytes in path lists', () => {
+    expect(pathListRequestSchema.parse([absolutePath])).toEqual([absolutePath]);
+    expect(() => pathListRequestSchema.parse(['relative/path'])).toThrow();
+    expect(() => pathListRequestSchema.parse(['./a'])).toThrow();
+    expect(() => pathListRequestSchema.parse(['../a'])).toThrow();
+    expect(() => pathListRequestSchema.parse([`${absolutePath}\0evil`])).toThrow();
+  });
+
+  it('requires absolute source paths in preview requests', () => {
+    const request = {
+      sourcePaths: [absolutePath],
+      sourceMode: 'picked_files',
+      fileNamePattern: '',
+      sortMode: 'alphabetic_path',
+      rules: [],
+      platform: 'darwin',
+    };
+    expect(previewRequestSchema.parse(request).sourcePaths).toEqual([absolutePath]);
+    expect(() => previewRequestSchema.parse({ ...request, sourcePaths: ['a.txt'] })).toThrow();
+    expect(() => previewRequestSchema.parse({ ...request, sourcePaths: [''] })).toThrow();
+  });
+
+  it('detects absolute paths per platform', () => {
+    expect(isAbsolutePathForPlatform('/Users/me', 'darwin')).toBe(true);
+    expect(isAbsolutePathForPlatform('C:\\Users\\me', 'darwin')).toBe(false);
+    expect(isAbsolutePathForPlatform('C:\\Users\\me', 'win32')).toBe(true);
+    expect(isAbsolutePathForPlatform('c:/Users/me', 'win32')).toBe(true);
+    expect(isAbsolutePathForPlatform('\\\\server\\share\\file', 'win32')).toBe(true);
+    expect(isAbsolutePathForPlatform('\\\\?\\C:\\long', 'win32')).toBe(true);
+    expect(isAbsolutePathForPlatform('/Users/me', 'win32')).toBe(false);
+    expect(isAbsolutePathForPlatform('C:relative', 'win32')).toBe(false);
+    expect(isAbsolutePathForPlatform('relative', 'linux')).toBe(false);
+  });
+
+  it('validates export preset requests', () => {
+    expect(exportPresetRequestSchema.parse(2)).toBe(2);
+    expect(() => exportPresetRequestSchema.parse('2')).toThrow();
+    expect(() => exportPresetRequestSchema.parse(-1)).toThrow();
+    expect(() => exportPresetRequestSchema.parse(1.5)).toThrow();
   });
 
   it('validates save preset requests', () => {

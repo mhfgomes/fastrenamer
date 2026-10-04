@@ -115,12 +115,36 @@ export const pickSourcesRequestSchema = z.object({
   mode: sourceModeSchema,
 }) satisfies z.ZodType<PickSourcesRequest>;
 
+const WINDOWS_ABSOLUTE_PATH = /^(?:[a-zA-Z]:[\\/]|[\\/]{2}[^\\/]+[\\/]+[^\\/]+)/;
+
+/**
+ * Pure (no node:path) absolute-path check so this module stays renderer-safe.
+ * On Windows a drive-letter or UNC path is required; elsewhere a leading `/`.
+ */
+export function isAbsolutePathForPlatform(value: string, platform: string) {
+  return platform === 'win32' ? WINDOWS_ABSOLUTE_PATH.test(value) : value.startsWith('/');
+}
+
+const runtimePlatform = (globalThis as { process?: { platform?: string } }).process?.platform;
+
+const absolutePathSchema = z
+  .string()
+  .min(1)
+  .refine((value) => !value.includes('\0'), 'Path must not contain NUL bytes.')
+  .refine(
+    (value) =>
+      runtimePlatform
+        ? isAbsolutePathForPlatform(value, runtimePlatform)
+        : isAbsolutePathForPlatform(value, 'win32') || isAbsolutePathForPlatform(value, 'posix'),
+    'Path must be absolute.',
+  );
+
 /**
  * Preview request sent by the renderer. `platform` is accepted for backwards compatibility but
  * ignored: the main process always plans for `process.platform`.
  */
 export const previewRequestSchema = z.object({
-  sourcePaths: z.array(z.string().min(1)),
+  sourcePaths: z.array(absolutePathSchema),
   sourceMode: sourceModeSchema,
   fileNamePattern: z.string(),
   sortMode: sortModeSchema,
@@ -146,7 +170,7 @@ export const undoRenameBatchRequestSchema = z.object({
   batchId: z.number().int().positive(),
 }) satisfies z.ZodType<UndoRenameBatchRequest>;
 
-export const pathListRequestSchema = z.array(z.string().min(1)).min(1);
+export const pathListRequestSchema = z.array(absolutePathSchema).min(1);
 
 export const savePresetRequestSchema = z.object({
   id: z.number().int().positive().optional(),
@@ -161,6 +185,7 @@ export const renamePresetRequestSchema = z.object({
 });
 
 export const deletePresetRequestSchema = z.number().int().positive();
+export const exportPresetRequestSchema = z.number().int().positive();
 
 export const sourceSelectionSchema = z.object({
   path: z.string(),
