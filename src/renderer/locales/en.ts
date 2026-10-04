@@ -100,7 +100,8 @@ export const en = {
   'topbar.busy.execute': 'Renaming...',
   'topbar.busy.undo': 'Undoing...',
   'preview.plan_changed': 'The files changed since this preview was generated, so nothing was renamed. Review the updated preview and press Rename again.',
-  'preview.skipped_directories': (vars?: Record<string, unknown>) => `${plural(Number(value(vars, 'count') ?? 0), 'folder', 'folders')} skipped (unreadable)`,
+  'preview.skipped_directories.one': '{count} folder skipped (unreadable)',
+  'preview.skipped_directories.other': '{count} folders skipped (unreadable)',
   'common.dismiss': 'Dismiss',
 
   'preview.title': 'Preview',
