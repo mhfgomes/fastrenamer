@@ -4,6 +4,7 @@ import {
   executeRenameBatchRequestSchema,
   previewRequestSchema,
   pathListRequestSchema,
+  renamePresetRequestSchema,
   savePresetRequestSchema,
 } from '../src/shared/contracts';
 
@@ -22,6 +23,13 @@ describe('IPC request schemas', () => {
     expect(preset.name).toBe('My preset');
 
     expect(() => savePresetRequestSchema.parse({ name: '   ', rules: [] })).toThrow();
+  });
+
+  it('validates rename preset requests', () => {
+    expect(renamePresetRequestSchema.parse({ id: 2, name: '  New name ' })).toEqual({ id: 2, name: 'New name' });
+    expect(() => renamePresetRequestSchema.parse({ id: 2, name: '   ' })).toThrow();
+    expect(() => renamePresetRequestSchema.parse({ id: 0, name: 'x' })).toThrow();
+    expect(() => renamePresetRequestSchema.parse({ name: 'x' })).toThrow();
   });
 
   it('validates delete preset requests', () => {

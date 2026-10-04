@@ -183,6 +183,22 @@ describe('AppDatabase robustness', () => {
     expect(fs.readFileSync(path.join(path.dirname(databasePath), backups[0]), 'utf8')).toMatch(/^this is definitely/);
   });
 
+  it('renames a user preset without touching its rules', () => {
+    const database = createTestDatabase();
+    const rules = [{ id: 'rule-1', type: 'trim_text' as const, enabled: true, mode: 'trim' as const }];
+    const saved = database.savePreset({ name: 'Original', rules });
+
+    const renamed = database.renamePreset(saved.id, 'Renamed');
+    expect(renamed.name).toBe('Renamed');
+    expect(renamed.rules).toEqual(rules);
+    expect(database.listPresets().find((preset) => preset.id === saved.id)?.rules).toEqual(rules);
+
+    const sample = database.listPresets().find((preset) => preset.isSample);
+    expect(sample).toBeDefined();
+    expect(() => database.renamePreset(sample!.id, 'Nope')).toThrow(/read-only/);
+    expect(() => database.renamePreset(999_999, 'Missing')).toThrow(/does not exist/);
+  });
+
   it('tracks rename journals until they finish', () => {
     const database = createTestDatabase();
     const fingerprint = { dev: '1', ino: '2', size: '0', mtimeNs: '0', isDirectory: false };

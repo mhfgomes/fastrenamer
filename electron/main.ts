@@ -12,6 +12,7 @@ import {
   undoRenameBatchRequestSchema,
   pathListRequestSchema,
   savePresetRequestSchema,
+  renamePresetRequestSchema,
   deletePresetRequestSchema,
 } from '../src/shared/contracts';
 import type { PresetTransferEntry } from '../src/shared/contracts';
@@ -292,6 +293,11 @@ function registerIpc() {
   ipcMain.handle('savePreset', (_event, payload) =>
     database.savePreset(savePresetRequestSchema.parse(payload)),
   );
+
+  ipcMain.handle('renamePreset', (_event, payload) => {
+    const request = renamePresetRequestSchema.parse(payload);
+    return database.renamePreset(request.id, request.name);
+  });
 
   ipcMain.handle('deletePreset', (_event, payload) => {
     database.deletePreset(deletePresetRequestSchema.parse(payload));

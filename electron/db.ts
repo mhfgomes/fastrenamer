@@ -399,6 +399,30 @@ export class AppDatabase implements RenameJournalStore {
     };
   }
 
+  /** Changes only the name of a user preset; its rules are kept as they are. */
+  renamePreset(id: number, name: string): Preset {
+    const existing = this.database
+      .prepare('SELECT is_sample FROM presets WHERE id = ?')
+      .get(id) as Record<string, unknown> | undefined;
+
+    if (!existing) {
+      throw new Error(`Preset ${id} does not exist.`);
+    }
+    if (Boolean(existing.is_sample)) {
+      throw new Error('Sample presets are read-only.');
+    }
+
+    this.database
+      .prepare('UPDATE presets SET name = ?, updated_at = ? WHERE id = ?')
+      .run(name, new Date().toISOString(), id);
+
+    const preset = this.listPresets().find((candidate) => candidate.id === id);
+    if (!preset) {
+      throw new Error(`Preset ${id} does not exist.`);
+    }
+    return preset;
+  }
+
   listUserPresetTransfers(): PresetTransferEntry[] {
     return this.listPresets()
       .filter((preset) => !preset.isSample)

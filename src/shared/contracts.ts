@@ -154,6 +154,12 @@ export const savePresetRequestSchema = z.object({
   rules: z.array(renameRuleSchema),
 });
 
+/** Rename-only update of a user preset; its rules are left untouched. */
+export const renamePresetRequestSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string().trim().min(1),
+});
+
 export const deletePresetRequestSchema = z.number().int().positive();
 
 export const sourceSelectionSchema = z.object({
@@ -311,6 +317,7 @@ export interface AdvancedRenamerApi {
   getStartupNotices(): Promise<StartupNotice[]>;
   listPresets(): Promise<Preset[]>;
   savePreset(input: { id?: number; name: string; rules: RenameRule[] }): Promise<Preset>;
+  renamePreset(input: { id: number; name: string }): Promise<Preset>;
   deletePreset(id: number): Promise<void>;
   exportUserPresets(): Promise<{ canceled: boolean; exportedCount: number }>;
   exportUserPreset(id: number): Promise<{ canceled: boolean; exportedCount: number }>;
