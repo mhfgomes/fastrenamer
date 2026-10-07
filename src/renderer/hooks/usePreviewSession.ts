@@ -177,9 +177,11 @@ export function usePreviewSession({
       if (result.renamedCount > 0 && result.errors.length === 0) {
         optionsRef.current.onRenamed();
       } else {
-        // Partially renamed: the result rows describe the old filesystem; regenerate.
-        refreshAfter = result.renamedCount > 0;
-        setShown({ result: toPreviewResult(result), request: approved.request, stale: refreshAfter });
+        // Partially renamed, blocked, or failed (possibly with a failed rollback, leaving temp names
+        // behind) — with renamedCount 0 too. The result rows describe the filesystem before this
+        // attempt, so they must never be runnable again: mark them stale and regenerate.
+        refreshAfter = true;
+        setShown({ result: toPreviewResult(result), request: approved.request, stale: true });
       }
       await optionsRef.current.onMetadataChanged();
     } catch (error) {
