@@ -110,6 +110,65 @@ export class DatabaseVersionError extends Error {
   }
 }
 
+/** The database file is damaged (SQLite reported corruption or the integrity check failed). */
+export class DatabaseCorruptError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'DatabaseCorruptError';
+  }
+}
+
+/**
+ * The database could not be opened for a reason other than corruption (locked by another
+ * process, permissions, failed migration, ...). The file is left exactly as it was.
+ */
+export class DatabaseOpenError extends Error {
+  constructor(databasePath: string, cause: unknown) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    const hint = isLockError(cause)
+      ? 'It is in use by another process (is another copy of Fast Renamer running?). Close it and try again.'
+      : 'Check that the file and its folder are readable and writable, then try again.';
+    super(
+      `The Fast Renamer database at ${databasePath} could not be opened (${reason}). ` +
+        `${hint} The file was not modified, so your presets and rename history are still in it.`,
+      { cause },
+    );
+    this.name = 'DatabaseOpenError';
+  }
+}
+
+// Primary SQLite result codes (node:sqlite exposes them as `errcode`, possibly extended).
+const SQLITE_BUSY = 5;
+const SQLITE_LOCKED = 6;
+const SQLITE_CORRUPT = 11;
+const SQLITE_NOTADB = 26;
+
+function sqlitePrimaryCode(error: unknown): number | null {
+  const code = (error as { errcode?: unknown } | null)?.errcode;
+  return typeof code === 'number' ? code & 0xff : null;
+}
+
+function isLockError(error: unknown) {
+  const code = sqlitePrimaryCode(error);
+  return code === SQLITE_BUSY || code === SQLITE_LOCKED;
+}
+
+/** Only confirmed corruption may cause the database to be moved aside. */
+export function isDatabaseCorruptionError(error: unknown) {
+  if (error instanceof DatabaseCorruptError) {
+    return true;
+  }
+  const code = sqlitePrimaryCode(error);
+  return code === SQLITE_CORRUPT || code === SQLITE_NOTADB;
+}
+
+export const DEFAULT_BUSY_TIMEOUT_MS = 5000;
+
+export interface AppDatabaseOptions {
+  /** How long to wait for another connection's lock before failing (SQLite busy_timeout). */
+  busyTimeoutMs?: number;
+}
+
 export function defaultDatabasePath() {
   return path.join(app.getPath('userData'), 'fast-renamer.sqlite');
 }
@@ -119,13 +178,14 @@ export class AppDatabase implements RenameJournalStore {
   private transactionDepth = 0;
   readonly databasePath: string;
 
-  constructor(databasePath?: string) {
+  constructor(databasePath?: string, options: AppDatabaseOptions = {}) {
     const resolvedPath = databasePath ?? defaultDatabasePath();
     this.databasePath = resolvedPath;
     fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
     this.database = new DatabaseSync(resolvedPath);
     try {
-      this.database.exec('PRAGMA busy_timeout = 5000;');
+      const busyTimeoutMs = Math.max(0, Math.floor(options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS));
+      this.database.exec(`PRAGMA busy_timeout = ${busyTimeoutMs};`);
       const version = this.readUserVersion();
       if (version > SCHEMA_VERSION) {
         throw new DatabaseVersionError(resolvedPath, version);
@@ -133,7 +193,7 @@ export class AppDatabase implements RenameJournalStore {
       const check = this.database.prepare('PRAGMA quick_check;').get() as Record<string, unknown> | undefined;
       const checkResult = check ? String(Object.values(check)[0]) : 'no result';
       if (checkResult !== 'ok') {
-        throw new Error(`Database integrity check failed: ${checkResult}`);
+        throw new DatabaseCorruptError(`Database integrity check failed: ${checkResult}`);
       }
       this.database.exec('PRAGMA journal_mode = WAL;');
       this.database.exec('PRAGMA foreign_keys = ON;');
@@ -616,36 +676,44 @@ function toJournalRecord(row: Record<string, unknown>): JournalRecord {
 
 export interface OpenDatabaseResult {
   database: AppDatabase;
-  /** Set when the previous database was unreadable and has been moved aside. */
+  /** Set when the previous database was corrupt and has been moved aside. */
   notice?: string;
 }
 
 /**
- * Opens the app database. A corrupt or unreadable file is moved aside to
- * `<name>.corrupt-<timestamp>` (with its -wal/-shm files) and a fresh database is created, so a
- * bad file never prevents the app from starting. A database from a newer app version is never
- * moved: DatabaseVersionError is thrown so the caller can tell the user to update.
+ * Opens the app database. Only a confirmed corrupt file (SQLITE_CORRUPT / SQLITE_NOTADB, or a
+ * failed `PRAGMA quick_check`) is moved aside to `<name>.corrupt-<timestamp>` (with its
+ * -wal/-shm/-journal files) and replaced by a fresh database. Every other failure leaves the file
+ * untouched and throws: DatabaseVersionError for a database from a newer app version, and
+ * DatabaseOpenError for locks, permissions, failed migrations and anything else, so the caller can
+ * tell the user instead of silently discarding presets, history and recovery journals.
  */
-export function openAppDatabase(databasePath = defaultDatabasePath()): OpenDatabaseResult {
+export function openAppDatabase(
+  databasePath = defaultDatabasePath(),
+  options: AppDatabaseOptions = {},
+): OpenDatabaseResult {
   try {
-    return { database: new AppDatabase(databasePath) };
+    return { database: new AppDatabase(databasePath, options) };
   } catch (error) {
-    if (error instanceof DatabaseVersionError || !fs.existsSync(databasePath)) {
+    if (error instanceof DatabaseVersionError) {
       throw error;
+    }
+    if (!isDatabaseCorruptionError(error) || !fs.existsSync(databasePath)) {
+      throw new DatabaseOpenError(databasePath, error);
     }
     const reason = error instanceof Error ? error.message : String(error);
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupPath = `${databasePath}.corrupt-${stamp}`;
     fs.renameSync(databasePath, backupPath);
-    for (const suffix of ['-wal', '-shm']) {
+    for (const suffix of ['-wal', '-shm', '-journal']) {
       if (fs.existsSync(`${databasePath}${suffix}`)) {
         fs.renameSync(`${databasePath}${suffix}`, `${backupPath}${suffix}`);
       }
     }
     const notice =
-      `The rename history database could not be opened (${reason}). It was moved to ${backupPath} ` +
+      `The rename history database could not be opened because it is damaged (${reason}). It was moved to ${backupPath} ` +
       'and a new, empty database was created. Presets and history from the old file are not available.';
     console.error(`[db] ${notice}`);
-    return { database: new AppDatabase(databasePath), notice };
+    return { database: new AppDatabase(databasePath, options), notice };
   }
 }

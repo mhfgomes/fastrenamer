@@ -3,7 +3,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AppDatabase, DatabaseVersionError, HISTORY_RETENTION_LIMIT, SCHEMA_VERSION, openAppDatabase } from './db';
+import {
+  AppDatabase,
+  DatabaseOpenError,
+  DatabaseVersionError,
+  HISTORY_RETENTION_LIMIT,
+  SCHEMA_VERSION,
+  openAppDatabase,
+} from './db';
 
 const tempDirs: string[] = [];
 const openDatabases: AppDatabase[] = [];
@@ -188,5 +195,113 @@ describe('AppDatabase robustness', () => {
     database.finishJournal(id, 'recovered');
     expect(database.listUnfinishedJournals()).toEqual([]);
     expect(database.getJournal(id)?.status).toBe('recovered');
+  });
+});
+
+describe('openAppDatabase failure handling', () => {
+  function tempDatabasePath() {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fast-renamer-db-'));
+    tempDirs.push(tempDir);
+    return path.join(tempDir, 'test.sqlite');
+  }
+
+  function directorySnapshot(databasePath: string) {
+    const directory = path.dirname(databasePath);
+    return fs
+      .readdirSync(directory)
+      .sort()
+      .map((name) => [name, fs.readFileSync(path.join(directory, name)).toString('base64')]);
+  }
+
+  it('keeps a locked database instead of replacing it, and opens it once the lock is released', () => {
+    const databasePath = tempDatabasePath();
+    const seeded = new AppDatabase(databasePath);
+    const preset = seeded.savePreset({ name: 'Mine', rules: [] });
+    const fingerprint = { dev: '1', ino: '2', size: '0', mtimeNs: '0', isDirectory: false };
+    const journalId = seeded.beginJournal('execute', [
+      { sourcePath: '/a', targetPath: '/b', tempName: '.frtmp-000000000000', isDirectory: false, fingerprint },
+    ]);
+    seeded.close();
+
+    // Another process (e.g. a second app instance) holds the write lock.
+    const holder = new DatabaseSync(databasePath);
+    holder.exec('BEGIN IMMEDIATE;');
+    try {
+      const before = directorySnapshot(databasePath);
+      const started = Date.now();
+      let thrown: unknown;
+      try {
+        openAppDatabase(databasePath, { busyTimeoutMs: 20 }).database.close();
+      } catch (error) {
+        thrown = error;
+      }
+      expect(Date.now() - started).toBeLessThan(2000);
+      expect(thrown).toBeInstanceOf(DatabaseOpenError);
+      expect((thrown as Error).message).toMatch(/locked/);
+      expect((thrown as Error).message).toMatch(/not modified/);
+      expect(directorySnapshot(databasePath)).toEqual(before);
+    } finally {
+      holder.exec('ROLLBACK;');
+      holder.close();
+    }
+
+    const { database, notice } = openAppDatabase(databasePath, { busyTimeoutMs: 20 });
+    openDatabases.push(database);
+    expect(notice).toBeUndefined();
+    expect(database.listPresets().find((entry) => entry.id === preset.id)?.name).toBe('Mine');
+    expect(database.listUnfinishedJournals().map((journal) => journal.id)).toEqual([journalId]);
+  });
+
+  it('keeps the database when a migration fails', () => {
+    const databasePath = tempDatabasePath();
+    const raw = new DatabaseSync(databasePath);
+    // Claims schema 1 but lacks the tables the 1 -> 2 migration alters.
+    raw.exec(`
+      CREATE TABLE presets (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, is_sample INTEGER NOT NULL DEFAULT 0,
+        rules_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      INSERT INTO presets (name, is_sample, rules_json, created_at, updated_at) VALUES ('Mine', 0, '[]', 'x', 'x');
+      PRAGMA user_version = 1;
+    `);
+    raw.close();
+
+    expect(() => openAppDatabase(databasePath)).toThrow(DatabaseOpenError);
+    expect(fs.readdirSync(path.dirname(databasePath)).some((name) => name.includes('.corrupt-'))).toBe(false);
+    // The failed migration was rolled back: same schema version, same data.
+    const reopened = new DatabaseSync(databasePath);
+    expect((reopened.prepare('PRAGMA user_version;').get() as { user_version: number }).user_version).toBe(1);
+    expect(reopened.prepare('SELECT name FROM presets').all()).toEqual([{ name: 'Mine' }]);
+    reopened.close();
+  });
+
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+    'keeps a database it is not allowed to read (skipped on Windows and as root)',
+    () => {
+      const databasePath = tempDatabasePath();
+      new AppDatabase(databasePath).close();
+      fs.chmodSync(databasePath, 0o000);
+      try {
+        expect(() => openAppDatabase(databasePath)).toThrow(DatabaseOpenError);
+        expect(fs.readdirSync(path.dirname(databasePath)).some((name) => name.includes('.corrupt-'))).toBe(false);
+      } finally {
+        fs.chmodSync(databasePath, 0o644);
+      }
+    },
+  );
+
+  it('moves a database with a damaged header aside and starts fresh', () => {
+    const databasePath = tempDatabasePath();
+    const seeded = new AppDatabase(databasePath);
+    seeded.savePreset({ name: 'Mine', rules: [] });
+    seeded.close();
+    // Clobber the "SQLite format 3" header.
+    const bytes = fs.readFileSync(databasePath);
+    bytes.fill(0x41, 0, 100);
+    fs.writeFileSync(databasePath, bytes);
+
+    const { database, notice } = openAppDatabase(databasePath);
+    openDatabases.push(database);
+    expect(notice).toMatch(/damaged/);
+    expect(database.listPresets().some((preset) => preset.name === 'Mine')).toBe(false);
+    expect(fs.readdirSync(path.dirname(databasePath)).filter((name) => name.includes('.corrupt-'))).toHaveLength(1);
   });
 });
