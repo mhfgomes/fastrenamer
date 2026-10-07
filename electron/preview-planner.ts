@@ -26,8 +26,8 @@ export interface PlanPreviewInput {
 /**
  * Runs `task` with the global clock frozen at `nowMs`.
  *
- * @fastrenamer/rename-engine 0.1.0 has no clock option: `applyRulesToName` evaluates `new Date()`
- * for every item. Freezing `Date` around the synchronous `generatePreview` call is the narrowest
+ * @fastrenamer/rename-engine 0.2.0 has no preview clock option: `generatePreview` evaluates
+ * `new Date()` for each call. Freezing `Date` around the synchronous call is the narrowest
  * way to make a plan reproducible. It is safe because the call is synchronous (no other code runs
  * while `Date` is replaced) and in production it runs inside a dedicated, single-task worker.
  * Replace this with the engine's own option once the app depends on an engine that has one.
