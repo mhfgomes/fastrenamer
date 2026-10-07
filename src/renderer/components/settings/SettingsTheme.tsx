@@ -20,7 +20,7 @@ export function getThemeKindLabel(theme: AppTheme, active: boolean, t: ReturnTyp
   return theme.kind === 'custom' ? t('appearance.custom') : t('appearance.preset');
 }
 
-type SettingsSectionId = 'updates' | 'executionProfile' | 'platformRules' | 'appearance' | 'language';
+export type SettingsSectionId = 'updates' | 'executionProfile' | 'platformRules' | 'appearance' | 'language';
 
 export function SettingsSection({
   title,

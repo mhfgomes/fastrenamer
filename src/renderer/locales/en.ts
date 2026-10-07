@@ -93,6 +93,9 @@ export const en = {
   'topbar.busy.preview': 'Generating preview...',
   'topbar.busy.execute': 'Renaming...',
   'topbar.busy.undo': 'Undoing...',
+  'preview.plan_changed': 'The files changed since this preview was generated, so nothing was renamed. Review the updated preview and press Rename again.',
+  'preview.skipped_directories': (vars?: Record<string, unknown>) => `${plural(Number(value(vars, 'count') ?? 0), 'folder', 'folders')} skipped (unreadable)`,
+  'common.dismiss': 'Dismiss',
 
   'preview.title': 'Preview',
   'preview.detail': 'Live diff with filesystem safety checks.',
@@ -210,6 +213,7 @@ export const en = {
   'presets.saved': 'saved',
   'presets.load': 'Load',
   'presets.edit_name': 'Edit name',
+  'presets.rename': 'Rename preset',
   'common.delete': 'Delete',
   'presets.rules_count': (vars?: Record<string, unknown>) => plural(Number(value(vars, 'count') ?? 0), 'rule', 'rules'),
 
@@ -345,6 +349,9 @@ export const en = {
   'error.preset_name_required': 'Preset name is required.',
   'error.import_presets': 'Unable to import presets.',
   'error.export_presets': 'Unable to export presets.',
+  'error.save_preset': 'Unable to save the preset.',
+  'error.delete_preset': 'Unable to delete the preset.',
+  'error.load_metadata': 'Unable to load presets and history.',
   'selected.none': '0 selected',
   'selected.folders': (vars?: Record<string, unknown>) => `${plural(Number(value(vars, 'count') ?? 0), 'folder', 'folders')} selected`,
   'selected.files': (vars?: Record<string, unknown>) => `${plural(Number(value(vars, 'count') ?? 0), 'file', 'files')} selected`,

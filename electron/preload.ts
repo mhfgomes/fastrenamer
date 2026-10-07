@@ -15,6 +15,7 @@ const api: AdvancedRenamerApi = {
   getStartupNotices: () => ipcRenderer.invoke('getStartupNotices'),
   listPresets: () => ipcRenderer.invoke('listPresets'),
   savePreset: (input) => ipcRenderer.invoke('savePreset', input),
+  renamePreset: (input) => ipcRenderer.invoke('renamePreset', input),
   deletePreset: (id) => ipcRenderer.invoke('deletePreset', id),
   exportUserPresets: () => ipcRenderer.invoke('exportUserPresets'),
   exportUserPreset: (id) => ipcRenderer.invoke('exportUserPreset', id),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Braces,
   Calendar,
@@ -56,6 +56,11 @@ import { useI18n } from '../../i18n';
 
 export { createRule, moveRule, reorderRule };
 
+type RuleOf<T extends RenameRule['type']> = Extract<RenameRule, { type: T }>;
+/** A partial patch, or a function computing the patch from the latest committed rule. */
+type RuleUpdate<R> = Partial<R> | ((current: R) => Partial<R>);
+type RuleUpdater<R> = (update: RuleUpdate<R>) => void;
+
 export function RulesPanel({
   rules,
   onAddRule,
@@ -63,8 +68,11 @@ export function RulesPanel({
   onMoveRule,
   onReorderRule,
   onDeleteRule,
+  disabled = false,
 }: {
   rules: RenameRule[];
+  /** Blocks every edit (used while a rename/undo is running). */
+  disabled?: boolean;
   onAddRule: (type: RenameRule['type']) => void;
   onUpdateRule: (id: string, updater: (r: RenameRule) => RenameRule) => void;
   onMoveRule: (id: string, dir: 'up' | 'down') => void;
@@ -88,7 +96,11 @@ export function RulesPanel({
   }
 
   return (
-    <Panel className="h-full">
+    <Panel
+      className={cn('h-full', disabled && 'opacity-60')}
+      inert={disabled}
+      aria-busy={disabled || undefined}
+    >
       <PanelHeader
         title={t('rules.title')}
         detail={t('rules.detail')}
@@ -198,6 +210,14 @@ export function RuleCard({
   const { t } = useI18n();
   const meta = getRuleMeta(t)[rule.type];
   const Icon = meta.icon;
+  // Always merge into the latest committed rule, never into the one captured at render time.
+  const update = useCallback<RuleUpdater<RenameRule>>(
+    (patch) =>
+      onUpdate((current) =>
+        ({ ...current, ...(typeof patch === 'function' ? patch(current) : patch) }) as RenameRule,
+      ),
+    [onUpdate],
+  );
 
   return (
     <div
@@ -262,7 +282,7 @@ export function RuleCard({
         <div className="flex items-center justify-self-end gap-0.5">
           <Switch
             checked={rule.enabled}
-            onCheckedChange={(checked) => onUpdate((r) => ({ ...r, enabled: checked }))}
+            onCheckedChange={(checked) => update({ enabled: checked })}
           />
           <Tooltip content={t('rules.move_up')}>
             <IconButton className="h-7 w-7" onClick={() => onMove('up')}>
@@ -287,7 +307,7 @@ export function RuleCard({
 
       {!collapsed && (
         <div className="border-t px-3.5 py-3" style={{ borderColor: `${meta.color}18` }}>
-          <RuleEditor rule={rule} onChange={(next) => onUpdate(() => next)} />
+          <RuleEditor rule={rule} update={update} />
         </div>
       )}
     </div>
@@ -296,10 +316,10 @@ export function RuleCard({
 
 export function NewNameRuleEditor({
   rule,
-  onChange,
+  update,
 }: {
-  rule: Extract<RenameRule, { type: 'new_name' }>;
-  onChange: (rule: Extract<RenameRule, { type: 'new_name' }>) => void;
+  rule: RuleOf<'new_name'>;
+  update: RuleUpdater<RuleOf<'new_name'>>;
 }) {
   const { t } = useI18n();
   const tokens = useMemo(() => getNewNameTokens(t), [t]);
@@ -309,14 +329,15 @@ export function NewNameRuleEditor({
   function insertToken(token: string) {
     const input = inputRef.current;
     if (!input) {
-      onChange({ ...rule, template: `${rule.template}${token}` });
+      update((current) => ({ template: `${current.template}${token}` }));
       return;
     }
 
     const start = input.selectionStart ?? rule.template.length;
     const end = input.selectionEnd ?? rule.template.length;
-    const nextTemplate = `${rule.template.slice(0, start)}${token}${rule.template.slice(end)}`;
-    onChange({ ...rule, template: nextTemplate });
+    update((current) => ({
+      template: `${current.template.slice(0, start)}${token}${current.template.slice(end)}`,
+    }));
 
     requestAnimationFrame(() => {
       const nextCursor = start + token.length;
@@ -331,7 +352,7 @@ export function NewNameRuleEditor({
         <Input
           ref={inputRef}
           value={rule.template}
-          onChange={(e) => onChange({ ...rule, template: e.target.value })}
+          onChange={(e) => update({ template: e.target.value })}
           placeholder={t('editor.new_name.placeholder')}
         />
         <p className="text-xs text-muted-foreground">
@@ -341,7 +362,7 @@ export function NewNameRuleEditor({
 
       <Checkbox
         checked={rule.reverseSequence ?? false}
-        onCheckedChange={(checked) => onChange({ ...rule, reverseSequence: checked === true })}
+        onCheckedChange={(checked) => update({ reverseSequence: checked === true })}
         label={t('editor.new_name.reverse_sequence')}
       />
 
@@ -379,7 +400,7 @@ export function NewNameRuleEditor({
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => onChange({ ...rule, template: template.value })}
+              onClick={() => update({ template: template.value })}
             >
               {template.label}
             </Button>
@@ -392,10 +413,10 @@ export function NewNameRuleEditor({
 
 export function CustomRuleEditor({
   rule,
-  onChange,
+  update,
 }: {
-  rule: Extract<RenameRule, { type: 'custom_rule' }>;
-  onChange: (rule: Extract<RenameRule, { type: 'custom_rule' }>) => void;
+  rule: RuleOf<'custom_rule'>;
+  update: RuleUpdater<RuleOf<'custom_rule'>>;
 }) {
   const { t } = useI18n();
   const quickInsert = useMemo(() => getCustomRuleQuickInsert(), []);
@@ -405,14 +426,15 @@ export function CustomRuleEditor({
   function insertSnippet(snippet: string) {
     const input = inputRef.current;
     if (!input) {
-      onChange({ ...rule, expression: `${rule.expression}${snippet}` });
+      update((current) => ({ expression: `${current.expression}${snippet}` }));
       return;
     }
 
     const start = input.selectionStart ?? rule.expression.length;
     const end = input.selectionEnd ?? rule.expression.length;
-    const nextExpression = `${rule.expression.slice(0, start)}${snippet}${rule.expression.slice(end)}`;
-    onChange({ ...rule, expression: nextExpression });
+    update((current) => ({
+      expression: `${current.expression.slice(0, start)}${snippet}${current.expression.slice(end)}`,
+    }));
 
     requestAnimationFrame(() => {
       const nextCursor = start + snippet.length;
@@ -435,7 +457,7 @@ export function CustomRuleEditor({
         <textarea
           ref={inputRef}
           value={rule.expression}
-          onChange={(event) => onChange({ ...rule, expression: event.target.value })}
+          onChange={(event) => update({ expression: event.target.value })}
           placeholder={t('editor.custom.placeholder')}
           spellCheck={false}
           className={cn(
@@ -475,7 +497,7 @@ export function CustomRuleEditor({
             <button
               key={example.label}
               type="button"
-              onClick={() => onChange({ ...rule, expression: example.value })}
+              onClick={() => update({ expression: example.value })}
               className={cn(
                 'rounded-lg border border-border bg-surface px-3 py-2 text-left transition-colors',
                 'hover:border-accent/40 hover:bg-surface-elevated',
@@ -504,14 +526,14 @@ export function CustomRuleEditor({
   );
 }
 
-export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r: RenameRule) => void }) {
+export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpdater<RenameRule> }) {
   const { t } = useI18n();
   switch (rule.type) {
     case 'new_name':
-      return <NewNameRuleEditor rule={rule} onChange={onChange} />;
+      return <NewNameRuleEditor rule={rule} update={update as RuleUpdater<RuleOf<'new_name'>>} />;
 
     case 'custom_rule':
-      return <CustomRuleEditor rule={rule} onChange={onChange} />;
+      return <CustomRuleEditor rule={rule} update={update as RuleUpdater<RuleOf<'custom_rule'>>} />;
 
     case 'find_replace':
       return (
@@ -519,29 +541,29 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
           <div className="grid gap-2 sm:grid-cols-2">
             <Input
               value={rule.find}
-              onChange={(e) => onChange({ ...rule, find: e.target.value })}
+              onChange={(e) => update({ find: e.target.value })}
               placeholder={t('editor.find.placeholder')}
             />
             <Input
               value={rule.replace}
-              onChange={(e) => onChange({ ...rule, replace: e.target.value })}
+              onChange={(e) => update({ replace: e.target.value })}
               placeholder={t('editor.replace.placeholder')}
             />
           </div>
           <div className="flex flex-wrap gap-4">
             <Checkbox
               checked={rule.matchCase}
-              onCheckedChange={(checked) => onChange({ ...rule, matchCase: checked === true })}
+              onCheckedChange={(checked) => update({ matchCase: checked === true })}
               label={t('editor.match_case')}
             />
             <Checkbox
               checked={rule.useRegex}
-              onCheckedChange={(checked) => onChange({ ...rule, useRegex: checked === true })}
+              onCheckedChange={(checked) => update({ useRegex: checked === true })}
               label={t('editor.regex')}
             />
             <Checkbox
               checked={rule.replaceAll}
-              onCheckedChange={(checked) => onChange({ ...rule, replaceAll: checked === true })}
+              onCheckedChange={(checked) => update({ replaceAll: checked === true })}
               label={t('editor.replace_all')}
             />
           </div>
@@ -553,12 +575,12 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
         <div className="grid gap-2 sm:grid-cols-2">
           <Input
             value={rule.prefix}
-            onChange={(e) => onChange({ ...rule, prefix: e.target.value })}
+            onChange={(e) => update({ prefix: e.target.value })}
             placeholder={t('editor.prefix.placeholder')}
           />
           <Input
             value={rule.suffix}
-            onChange={(e) => onChange({ ...rule, suffix: e.target.value })}
+            onChange={(e) => update({ suffix: e.target.value })}
             placeholder={t('editor.suffix.placeholder')}
           />
         </div>
@@ -568,7 +590,7 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
       return (
         <Select
           value={rule.mode}
-          onValueChange={(value) => onChange({ ...rule, mode: value as typeof rule.mode })}
+          onValueChange={(value) => update({ mode: value as typeof rule.mode })}
         >
           <SelectTrigger>
             <SelectValue />
@@ -590,7 +612,7 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
       return (
         <Select
           value={rule.mode}
-          onValueChange={(value) => onChange({ ...rule, mode: value as typeof rule.mode })}
+          onValueChange={(value) => update({ mode: value as typeof rule.mode })}
         >
           <SelectTrigger>
             <SelectValue />
@@ -612,12 +634,12 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
         <div className="space-y-2.5">
           <Input
             value={rule.text}
-            onChange={(e) => onChange({ ...rule, text: e.target.value })}
+            onChange={(e) => update({ text: e.target.value })}
             placeholder={t('editor.remove.placeholder')}
           />
           <Checkbox
             checked={rule.matchCase}
-            onCheckedChange={(checked) => onChange({ ...rule, matchCase: checked === true })}
+            onCheckedChange={(checked) => update({ matchCase: checked === true })}
             label={t('editor.match_case')}
           />
         </div>
@@ -628,7 +650,7 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
         <div className="grid gap-2 sm:grid-cols-2">
           <Select
             value={rule.position}
-            onValueChange={(value) => onChange({ ...rule, position: value as typeof rule.position })}
+            onValueChange={(value) => update({ position: value as typeof rule.position })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -641,25 +663,23 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
           </Select>
           <Input
             value={rule.separator}
-            onChange={(e) => onChange({ ...rule, separator: e.target.value })}
+            onChange={(e) => update({ separator: e.target.value })}
             placeholder={t('editor.separator.placeholder')}
           />
-          <Input
-            type="number"
+          <IntegerInput
             value={rule.start}
-            onChange={(e) => onChange({ ...rule, start: Number(e.target.value) })}
+            onCommit={(start) => update({ start })}
             placeholder={t('editor.start.placeholder')}
           />
-          <Input
-            type="number"
+          <IntegerInput
             value={rule.step}
-            onChange={(e) => onChange({ ...rule, step: Number(e.target.value) })}
+            onCommit={(step) => update({ step })}
             placeholder={t('editor.step.placeholder')}
           />
-          <Input
-            type="number"
+          <IntegerInput
+            min={0}
             value={rule.padWidth}
-            onChange={(e) => onChange({ ...rule, padWidth: Number(e.target.value) })}
+            onCommit={(padWidth) => update({ padWidth })}
             placeholder={t('editor.pad.placeholder')}
           />
         </div>
@@ -670,7 +690,7 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
         <div className="grid gap-2 sm:grid-cols-2">
           <Select
             value={rule.position}
-            onValueChange={(value) => onChange({ ...rule, position: value as typeof rule.position })}
+            onValueChange={(value) => update({ position: value as typeof rule.position })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -683,7 +703,7 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
           </Select>
           <Select
             value={rule.casing}
-            onValueChange={(value) => onChange({ ...rule, casing: value as typeof rule.casing })}
+            onValueChange={(value) => update({ casing: value as typeof rule.casing })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -695,21 +715,19 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
           </Select>
           <Input
             value={rule.separator}
-            onChange={(e) => onChange({ ...rule, separator: e.target.value })}
+            onChange={(e) => update({ separator: e.target.value })}
             placeholder={t('editor.separator.placeholder')}
           />
-          <Input
-            type="number"
+          <IntegerInput
             min={1}
             value={rule.start}
-            onChange={(e) => onChange({ ...rule, start: Math.max(1, Number(e.target.value) || 1) })}
+            onCommit={(start) => update({ start })}
             placeholder={t('editor.start.placeholder')}
           />
-          <Input
-            type="number"
+          <IntegerInput
             min={1}
             value={rule.step}
-            onChange={(e) => onChange({ ...rule, step: Math.max(1, Number(e.target.value) || 1) })}
+            onCommit={(step) => update({ step })}
             placeholder={t('editor.step.placeholder')}
           />
         </div>
@@ -720,7 +738,7 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
         <div className="grid gap-2 sm:grid-cols-2">
           <Select
             value={rule.position}
-            onValueChange={(value) => onChange({ ...rule, position: value as typeof rule.position })}
+            onValueChange={(value) => update({ position: value as typeof rule.position })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -733,12 +751,12 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
           </Select>
           <Input
             value={rule.format}
-            onChange={(e) => onChange({ ...rule, format: e.target.value })}
+            onChange={(e) => update({ format: e.target.value })}
             placeholder={t('editor.date_format.placeholder')}
           />
           <Input
             value={rule.separator}
-            onChange={(e) => onChange({ ...rule, separator: e.target.value })}
+            onChange={(e) => update({ separator: e.target.value })}
             placeholder={t('editor.separator.placeholder')}
           />
         </div>
@@ -749,7 +767,7 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
         <div className="grid gap-2 sm:grid-cols-2">
           <Select
             value={rule.mode}
-            onValueChange={(value) => onChange({ ...rule, mode: value as typeof rule.mode })}
+            onValueChange={(value) => update({ mode: value as typeof rule.mode })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -765,11 +783,70 @@ export function RuleEditor({ rule, onChange }: { rule: RenameRule; onChange: (r:
           {rule.mode === 'replace' && (
             <Input
               value={rule.replacement}
-              onChange={(e) => onChange({ ...rule, replacement: e.target.value })}
+              onChange={(e) => update({ replacement: e.target.value })}
               placeholder="jpg"
             />
           )}
         </div>
       );
   }
+}
+
+/** Parses a whole-number string; returns null for empty, decimal, out-of-range or non-numeric text. */
+export function parseIntegerInput(raw: string, min?: number): number | null {
+  const trimmed = raw.trim();
+  if (!/^-?\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isSafeInteger(parsed)) return null;
+  if (min !== undefined && parsed < min) return null;
+  return parsed;
+}
+
+/**
+ * Integer field that keeps the raw text locally so it can be cleared or edited freely; the rule is
+ * only updated with valid whole numbers, and invalid text reverts to the committed value on blur.
+ */
+function IntegerInput({
+  value,
+  min,
+  onCommit,
+  placeholder,
+}: {
+  value: number;
+  min?: number;
+  onCommit: (value: number) => void;
+  placeholder?: string;
+}) {
+  const [raw, setRaw] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  const invalid = parseIntegerInput(raw, min) === null;
+
+  useEffect(() => {
+    // Follow external changes (preset load, history reuse) unless the user is editing the field.
+    if (!focused) setRaw(String(value));
+  }, [focused, value]);
+
+  return (
+    <Input
+      type="number"
+      inputMode="numeric"
+      step={1}
+      min={min}
+      value={raw}
+      aria-invalid={invalid || undefined}
+      className={cn(invalid && 'border-conflict/60')}
+      onFocus={() => setFocused(true)}
+      onChange={(event) => {
+        const next = event.target.value;
+        setRaw(next);
+        const parsed = parseIntegerInput(next, min);
+        if (parsed !== null && parsed !== value) onCommit(parsed);
+      }}
+      onBlur={() => {
+        setFocused(false);
+        if (parseIntegerInput(raw, min) === null) setRaw(String(value));
+      }}
+      placeholder={placeholder}
+    />
+  );
 }

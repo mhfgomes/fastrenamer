@@ -55,6 +55,8 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: 'dist-renderer',
+    // Never inline fonts as data: URIs; the CSP only allows `font-src 'self'`.
+    assetsInlineLimit: (file: string) => (/\.(woff2?|ttf|otf)$/i.test(file) ? false : undefined),
   },
   test: {
     environment: 'node',

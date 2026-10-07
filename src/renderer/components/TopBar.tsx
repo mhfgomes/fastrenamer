@@ -49,8 +49,16 @@ export interface TopBarProps {
   sortMode: SortMode;
   sortModeMeta: Record<SortMode, { label: string }>;
   preview: PreviewResult;
-  busy: 'idle' | 'preview' | 'execute' | 'undo';
+  previewLoading: boolean;
+  mutation: 'idle' | 'execute' | 'undo';
+  /** Rename runs only for a current, unblocked preview (see usePreviewSession). */
+  renameDisabled: boolean;
+  /** Error from the last action (rename, undo, picker, presets...). */
   error: string | null;
+  /** Error from the last preview generation, kept separate so neither erases the other. */
+  previewError: string | null;
+  /** Folders skipped while building the preview because they could not be read. */
+  skippedDirectories: number;
   undoDisabled: boolean;
   t: ReturnType<typeof useI18n>['t'];
   onOpenAddSources: () => void;
@@ -78,8 +86,12 @@ export function TopBar({
   sortMode,
   sortModeMeta,
   preview,
-  busy,
+  previewLoading,
+  mutation,
+  renameDisabled,
   error,
+  previewError,
+  skippedDirectories,
   undoDisabled,
   t,
   onOpenAddSources,
@@ -97,6 +109,7 @@ export function TopBar({
   onCloseWindow,
 }: TopBarProps) {
   const isMac = platform === 'darwin';
+  const mutating = mutation !== 'idle';
   const topBarGhostButtonClassName =
     'border border-transparent hover:border-accent/30 hover:bg-surface-elevated hover:text-foreground';
 
@@ -120,7 +133,7 @@ export function TopBar({
         <div className="h-6 w-px bg-border hidden sm:block" />
 
         <div className="app-no-drag flex flex-wrap items-center gap-2">
-          <Button variant="default" size="sm" onClick={onOpenAddSources}>
+          <Button variant="default" size="sm" onClick={onOpenAddSources} disabled={mutating}>
             <FileInput className="h-3.5 w-3.5" />
             {t('topbar.add')}
           </Button>
@@ -129,7 +142,7 @@ export function TopBar({
             size="sm"
             className={topBarGhostButtonClassName}
             onClick={onClearSources}
-            disabled={sourceCount === 0}
+            disabled={sourceCount === 0 || mutating}
           >
             <Trash2 className="h-3.5 w-3.5" />
             {t('topbar.clear')}
@@ -155,7 +168,11 @@ export function TopBar({
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               {t('sources.sort')}
             </span>
-            <Select value={sortMode} onValueChange={(value) => onChangeSortMode(value as SortMode)}>
+            <Select
+              value={sortMode}
+              disabled={mutating}
+              onValueChange={(value) => onChangeSortMode(value as SortMode)}
+            >
               <SelectTrigger className="h-8 w-[170px] border-border/70 bg-card/80 px-2.5 text-xs shadow-none">
                 <SelectValue />
               </SelectTrigger>
@@ -173,17 +190,17 @@ export function TopBar({
 
           <Tooltip content={t('topbar.refresh_preview')}>
             <IconButton
-              disabled={busy !== 'idle' || sourceCount === 0}
+              disabled={mutating || previewLoading || sourceCount === 0}
               onClick={onRefresh}
               aria-label={t('topbar.refresh_preview')}
             >
-              <RefreshCcw className={cn('h-4 w-4', busy === 'preview' && 'animate-spin')} />
+              <RefreshCcw className={cn('h-4 w-4', previewLoading && 'animate-spin')} />
             </IconButton>
           </Tooltip>
 
           <Tooltip content={t('topbar.undo_last')}>
             <IconButton disabled={undoDisabled} onClick={onUndo} aria-label={t('history.undo')}>
-              <Undo2 className={cn('h-4 w-4', busy === 'undo' && 'animate-spin')} />
+              <Undo2 className={cn('h-4 w-4', mutation === 'undo' && 'animate-spin')} />
             </IconButton>
           </Tooltip>
 
@@ -191,7 +208,7 @@ export function TopBar({
 
           <Button
             size="sm"
-            disabled={busy !== 'idle' || preview.summary.blocked || preview.summary.changed === 0}
+            disabled={renameDisabled}
             onClick={onExecute}
           >
             {t('topbar.rename')}
@@ -280,18 +297,27 @@ export function TopBar({
         <Badge dot tone="unchanged">{t('topbar.status.unchanged', { count: preview.summary.unchanged })}</Badge>
         <Badge dot>{selectedLabel}</Badge>
 
-        {busy !== 'idle' && (
+        {skippedDirectories > 0 && (
+          <Badge dot tone="invalid">{t('preview.skipped_directories', { count: skippedDirectories })}</Badge>
+        )}
+
+        {(mutating || previewLoading) && (
           <span className="flex items-center gap-1.5 text-xs text-accent">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-            {busy === 'preview'
-              ? t('topbar.busy.preview')
-              : busy === 'execute'
-                ? t('topbar.busy.execute')
-                : t('topbar.busy.undo')}
+            {mutation === 'execute'
+              ? t('topbar.busy.execute')
+              : mutation === 'undo'
+                ? t('topbar.busy.undo')
+                : t('topbar.busy.preview')}
           </span>
         )}
 
-        {error && <span className="ml-auto text-xs text-conflict">⚠ {error}</span>}
+        {(error || previewError) && (
+          <span className="ml-auto flex flex-col items-end gap-0.5 text-xs text-conflict">
+            {error && <span>⚠ {error}</span>}
+            {previewError && <span>⚠ {previewError}</span>}
+          </span>
+        )}
       </div>
     </Panel>
   );
