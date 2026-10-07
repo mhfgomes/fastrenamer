@@ -26,7 +26,7 @@ import type {
   SortMode,
   SourceSelection,
 } from '@fastrenamer/rename-engine/types';
-import type { UpdateChannel, UpdateState, WindowState } from '@shared/contracts';
+import type { AppPreviewResult, UpdateChannel, UpdateState, WindowState } from '@shared/contracts';
 import {
   Badge,
   Button,
@@ -184,7 +184,12 @@ export function App() {
     [draftSortMode, pendingDroppedSources, sources],
   );
 
-  useEffect(() => { void reloadMetadata(); }, []);
+  useEffect(() => {
+    void reloadMetadata();
+    void window.advancedRenamer.getStartupNotices().then((notices) => {
+      if (notices.length > 0) setError(notices.map((notice) => notice.message).join(' '));
+    });
+  }, []);
 
   useEffect(() => {
     if (sources.length === 0) {
@@ -599,14 +604,20 @@ export function App() {
     setBusy('execute');
     setError(null);
     try {
-      const result = await window.advancedRenamer.executeRenameBatch(previewRequest);
-      if (result.errors.length > 0) setError(result.errors.join(' '));
+      const result = await window.advancedRenamer.executeRenameBatch({
+        ...previewRequest,
+        planId: (preview as Partial<AppPreviewResult>).planId ?? '',
+      });
+      const messages = [...result.errors, ...result.warnings];
+      if (messages.length > 0) setError(messages.join(' '));
       if (result.renamedCount > 0 && result.errors.length === 0) {
         clearSources();
       } else {
         setPreview(result);
       }
       await reloadMetadata();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy('idle');
     }
@@ -617,9 +628,12 @@ export function App() {
     setError(null);
     try {
       const result = await window.advancedRenamer.undoRenameBatch({ batchId });
-      if (!result.success && result.errors.length > 0) setError(result.errors.join(' '));
+      const messages = [...result.errors, ...result.warnings];
+      if (messages.length > 0) setError(messages.join(' '));
       await reloadMetadata();
       await refreshPreview();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy('idle');
     }

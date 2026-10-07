@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type {
   DirectoryListing,
-  ExecuteRenameBatchRequest,
   ExecuteRenameBatchResult,
   HistoryEntry,
   PickSourcesRequest,
@@ -116,17 +115,32 @@ export const pickSourcesRequestSchema = z.object({
   mode: sourceModeSchema,
 }) satisfies z.ZodType<PickSourcesRequest>;
 
+/**
+ * Preview request sent by the renderer. `platform` is accepted for backwards compatibility but
+ * ignored: the main process always plans for `process.platform`.
+ */
 export const previewRequestSchema = z.object({
   sourcePaths: z.array(z.string().min(1)),
   sourceMode: sourceModeSchema,
   fileNamePattern: z.string(),
   sortMode: sortModeSchema,
   rules: z.array(renameRuleSchema),
-  platform: platformSchema,
-}) satisfies z.ZodType<PreviewRequest>;
+  platform: platformSchema.optional(),
+  /** Include dotfiles / dot-directories (e.g. `.git`) when walking folders. Defaults to false. */
+  includeHidden: z.boolean().optional(),
+});
 
-export const executeRenameBatchRequestSchema =
-  previewRequestSchema satisfies z.ZodType<ExecuteRenameBatchRequest>;
+export type AppPreviewRequest = z.infer<typeof previewRequestSchema>;
+
+/** SHA-256 hex digest identifying an approved plan (see `AppPreviewResult.planId`). */
+export const planIdSchema = z.string().regex(/^[0-9a-f]{64}$/);
+
+/** Execute = the preview request plus the `planId` of the preview the user approved. */
+export const executeRenameBatchRequestSchema = previewRequestSchema.extend({
+  planId: planIdSchema,
+});
+
+export type AppExecuteRenameBatchRequest = z.infer<typeof executeRenameBatchRequestSchema>;
 
 export const undoRenameBatchRequestSchema = z.object({
   batchId: z.number().int().positive(),
@@ -154,7 +168,9 @@ export const directoryListingSchema = z.object({
   directChildren: z.number().int(),
   recursiveChildren: z.number().int(),
   items: z.array(sourceSelectionSchema),
-}) satisfies z.ZodType<DirectoryListing>;
+  skippedDirectories: z.number().int(),
+  recursiveChildrenTruncated: z.boolean(),
+}) satisfies z.ZodType<AppDirectoryListing>;
 
 export const presetSchema = z.object({
   id: z.number().int(),
@@ -204,6 +220,48 @@ export const historyEntrySchema = z.object({
   undoReason: z.string().optional(),
 }) satisfies z.ZodType<HistoryEntry>;
 
+/** Directory listing with the folders that could not be read (EPERM/EACCES/...) counted, not fatal. */
+export interface AppDirectoryListing extends DirectoryListing {
+  skippedDirectories: number;
+  /** `recursiveChildren` stopped counting at the scan cap; treat it as "at least". */
+  recursiveChildrenTruncated: boolean;
+}
+
+export interface AppPreviewResult extends PreviewResult {
+  /**
+   * Identity of this plan: SHA-256 over the ordered (sourcePath, nextPath, isDirectory) list of
+   * changed rows plus `summary.blocked`. Send it back with execute so main can refuse to run a
+   * plan that differs from the one the user approved.
+   */
+  planId: string;
+  /** Folders skipped while collecting items because they could not be read. */
+  skippedDirectories: number;
+}
+
+export interface AppExecuteRenameBatchResult extends ExecuteRenameBatchResult {
+  planId: string;
+  skippedDirectories: number;
+  /** True when execution was refused because the regenerated plan differs from `request.planId`. */
+  planChanged: boolean;
+  /**
+   * Non-fatal problems after files were renamed (e.g. history could not be recorded). Files WERE
+   * renamed when `renamedCount > 0` even if this is non-empty.
+   */
+  warnings: string[];
+  historyRecorded: boolean;
+}
+
+export interface AppUndoRenameBatchResult extends UndoRenameBatchResult {
+  /** Non-fatal problems after files were restored (e.g. the batch could not be marked undone). */
+  warnings: string[];
+}
+
+/** Startup messages (database reset, interrupted-rename recovery, ...) for the renderer to show. */
+export interface StartupNotice {
+  level: 'info' | 'warning' | 'error';
+  message: string;
+}
+
 export interface WindowState {
   isMaximized: boolean;
 }
@@ -246,10 +304,11 @@ export interface AdvancedRenamerApi {
   getDroppedPaths(files: File[]): string[];
   pickSources(request: PickSourcesRequest): Promise<SourceSelection[]>;
   resolveSources(paths: string[]): Promise<SourceSelection[]>;
-  loadDirectoryItems(paths: string[]): Promise<DirectoryListing[]>;
-  generatePreview(request: PreviewRequest): Promise<PreviewResult>;
-  executeRenameBatch(request: ExecuteRenameBatchRequest): Promise<ExecuteRenameBatchResult>;
-  undoRenameBatch(request: UndoRenameBatchRequest): Promise<UndoRenameBatchResult>;
+  loadDirectoryItems(paths: string[]): Promise<AppDirectoryListing[]>;
+  generatePreview(request: AppPreviewRequest): Promise<AppPreviewResult>;
+  executeRenameBatch(request: AppExecuteRenameBatchRequest): Promise<AppExecuteRenameBatchResult>;
+  undoRenameBatch(request: UndoRenameBatchRequest): Promise<AppUndoRenameBatchResult>;
+  getStartupNotices(): Promise<StartupNotice[]>;
   listPresets(): Promise<Preset[]>;
   savePreset(input: { id?: number; name: string; rules: RenameRule[] }): Promise<Preset>;
   deletePreset(id: number): Promise<void>;
@@ -272,7 +331,6 @@ export interface AdvancedRenamerApi {
 }
 
 export type {
-  ExecuteRenameBatchRequest,
   ExecuteRenameBatchResult,
   HistoryEntry,
   PickSourcesRequest,
