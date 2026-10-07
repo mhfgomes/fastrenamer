@@ -1,4 +1,4 @@
-import type { UpdateState } from '@shared/contracts';
+import type { UpdateManualReason, UpdateState } from '@shared/contracts';
 import type { Translate } from '../i18n';
 
 type UpdateToastTone = 'default' | 'ok' | 'accent' | 'conflict';
@@ -80,16 +80,31 @@ export function getUpdateStatusLabel(status: UpdateState['status'], t: Translate
   }
 }
 
+/** Localized explanation of why this build needs manual downloads (with GitHub Releases instructions). */
+export function getManualUpdateReasonText(reason: UpdateManualReason, t: Translate) {
+  switch (reason) {
+    case 'mac-signature-unverified':
+      return t('updates.manual_reason.mac_signature_unverified');
+    case 'mac-unsigned':
+      return t('updates.manual_reason.mac_unsigned');
+    case 'windows-portable':
+      return t('updates.manual_reason.windows_portable');
+  }
+}
+
+/**
+ * Translated status summary. `state.message` is only shown for `error`, where it carries free-form
+ * text from electron-updater; every other state is rendered from its status and `reason` code.
+ */
 export function getUpdateSummary(state: UpdateState, t: Translate, locale?: string) {
   switch (state.status) {
     case 'disabled':
-      // The main process only sends a fixed English sentence here; show the translated equivalent.
       return t('updates.summary.disabled');
     case 'checking':
       return t('updates.summary.checking');
     case 'available':
       return state.manualDownloadOnly
-        ? state.message ?? t('updates.summary.available_manual', { version: versionOrUnknown(state.availableVersion, t) })
+        ? t('updates.summary.available_manual', { version: versionOrUnknown(state.availableVersion, t) })
         : t('updates.summary.available_auto', { version: versionOrUnknown(state.availableVersion, t) });
     case 'downloading':
       return state.progress
@@ -110,8 +125,11 @@ export function getUpdateSummary(state: UpdateState, t: Translate, locale?: stri
     case 'error':
       return state.message ?? t('updates.summary.error');
     default:
-      return state.manualDownloadOnly
-        ? state.message ?? t('updates.summary.idle_manual')
-        : t('updates.summary.idle');
+      if (!state.manualDownloadOnly) {
+        return t('updates.summary.idle');
+      }
+      return state.reason && state.reason !== 'not-packaged'
+        ? getManualUpdateReasonText(state.reason, t)
+        : t('updates.summary.idle_manual');
   }
 }
