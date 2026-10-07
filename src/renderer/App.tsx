@@ -26,7 +26,7 @@ export function App() {
   const { t } = useI18n();
   const platform = useMemo(detectPlatform, []);
   const sortModeMeta = useMemo(() => getSortModeMeta(t), [t]);
-  const themeManager = useThemeManager();
+  const themeManager = useThemeManager(t);
 
   const [rules, setRules] = useState<RenameRule[]>([]);
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([...STATUS_OPTIONS]);
@@ -234,6 +234,7 @@ export function App() {
         <div ref={panels.containerRef} className="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4 lg:flex-row lg:gap-0">
           <div
             ref={panels.leftPanelRef}
+            id="rules-panel"
             className="h-full lg:shrink-0"
             style={panels.isDesktop ? { width: `${panels.leftWidthRatio * 100}%` } : undefined}
           >
@@ -250,10 +251,17 @@ export function App() {
 
           {panels.isDesktop && (
             <div
-              className="flex h-full w-3 shrink-0 cursor-col-resize select-none items-center justify-center group"
+              role="separator"
+              aria-orientation="vertical"
+              aria-controls="rules-panel"
+              aria-label={t('layout.resize_panels')}
+              {...panels.splitterAria}
+              tabIndex={0}
+              className="group flex h-full w-3 shrink-0 cursor-col-resize select-none items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onMouseDown={panels.onSplitterMouseDown}
+              onKeyDown={panels.onSplitterKeyDown}
             >
-              <div className="h-full w-px bg-border transition-colors duration-150 group-hover:bg-accent" />
+              <div className="h-full w-px bg-border transition-colors duration-150 group-hover:bg-accent group-focus-visible:bg-accent" />
             </div>
           )}
 

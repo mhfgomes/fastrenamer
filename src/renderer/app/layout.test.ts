@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { clampLeftWidthRatio, readStoredLeftWidthRatio } from './layout';
+import {
+  clampLeftWidthRatio,
+  getKeyboardResizeRatio,
+  getLeftWidthRatioBounds,
+  KEYBOARD_RESIZE_LARGE_STEP,
+  KEYBOARD_RESIZE_STEP,
+  readStoredLeftWidthRatio,
+} from './layout';
 import { DEFAULT_LEFT_WIDTH_RATIO, MAX_LEFT_WIDTH_RATIO, MIN_LEFT_PANEL_WIDTH_PX } from './defaults';
 
 describe('clampLeftWidthRatio', () => {
@@ -33,5 +40,24 @@ describe('readStoredLeftWidthRatio', () => {
 
   it('reads stored ratios', () => {
     expect(readStoredLeftWidthRatio('0.35', 2000)).toBe(0.35);
+  });
+});
+
+describe('getKeyboardResizeRatio', () => {
+  it('steps with the arrow keys and takes larger steps with Shift', () => {
+    expect(getKeyboardResizeRatio('ArrowRight', false, 0.3, 2000)).toBeCloseTo(0.3 + KEYBOARD_RESIZE_STEP);
+    expect(getKeyboardResizeRatio('ArrowLeft', false, 0.3, 2000)).toBeCloseTo(0.3 - KEYBOARD_RESIZE_STEP);
+    expect(getKeyboardResizeRatio('ArrowLeft', true, 0.4, 2000)).toBeCloseTo(0.4 - KEYBOARD_RESIZE_LARGE_STEP);
+  });
+
+  it('jumps to the bounds with Home/End and stays clamped', () => {
+    const { minRatio, maxRatio } = getLeftWidthRatioBounds(2000);
+    expect(getKeyboardResizeRatio('Home', false, 0.3, 2000)).toBe(minRatio);
+    expect(getKeyboardResizeRatio('End', false, 0.3, 2000)).toBe(maxRatio);
+    expect(getKeyboardResizeRatio('ArrowRight', true, maxRatio, 2000)).toBe(maxRatio);
+  });
+
+  it('ignores other keys', () => {
+    expect(getKeyboardResizeRatio('Enter', false, 0.3, 2000)).toBeNull();
   });
 });

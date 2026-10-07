@@ -1,16 +1,9 @@
 import { ChevronDown, Copy } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Badge, Button, cn } from '../ui';
 import type { AppTheme } from '../../themes';
 import { useI18n } from '../../i18n';
-
-export function getThemeDescription(theme: AppTheme, t: ReturnType<typeof useI18n>['t']) {
-  if (theme.kind === 'preset') {
-    return t(`theme.preset.${theme.id}.description`);
-  }
-
-  return theme.description;
-}
+import { getThemeDescription, getThemeName } from '../../app/theme-labels';
 
 export function getThemeKindLabel(theme: AppTheme, active: boolean, t: ReturnType<typeof useI18n>['t']) {
   if (active) {
@@ -35,12 +28,14 @@ export function SettingsSection({
   onToggle: () => void;
   children: ReactNode;
 }) {
+  const contentId = useId();
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
+        aria-controls={contentId}
         className="flex w-full items-start justify-between gap-3 text-left"
       >
         <div className="min-w-0">
@@ -59,8 +54,11 @@ export function SettingsSection({
         </div>
       </button>
 
+      {/* `inert` keeps collapsed content out of the tab order and the accessibility tree while
+          still letting the open/close animation run. */}
       <div
-        aria-hidden={!open}
+        id={contentId}
+        inert={!open}
         className={cn(
           'grid transition-[grid-template-rows,opacity] duration-200 ease-out',
           open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
@@ -116,7 +114,7 @@ export function ThemeOptionCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-foreground">{theme.name}</p>
+              <p className="text-sm font-semibold text-foreground">{getThemeName(theme, t)}</p>
               <Badge tone={active ? 'accent' : 'default'}>
                 {getThemeKindLabel(theme, active, t)}
               </Badge>
@@ -144,8 +142,13 @@ export function ThemeOptionCard({
         <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
           {t(`appearance.base.${theme.baseThemeId}`)}
         </span>
-        <Button size="sm" variant="ghost" onClick={onDuplicate}>
-          <Copy className="h-3.5 w-3.5" />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onDuplicate}
+          aria-label={t('appearance.copy_theme', { name: getThemeName(theme, t) })}
+        >
+          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
           {t('appearance.copy')}
         </Button>
       </div>

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createI18nRuntime, type LocaleRegistryEntry, type TranslationVars } from './i18n-core';
-import { en, type LocaleDict } from './locales/en';
+import { en, type LocaleDict, type MessageKey } from './locales/en';
 import { de } from './locales/de';
 import { es } from './locales/es';
 import { fr } from './locales/fr';
@@ -44,6 +44,23 @@ function detectInitialLocale(): AppLocale {
   return resolveNavigatorLocale(navigator.languages?.length ? navigator.languages : navigator.language);
 }
 
+/**
+ * Translator for UI rendered outside `I18nProvider` (the root error boundary). It uses the
+ * persisted/detected locale, which is the provider's locale since every change is stored.
+ */
+export function getStandaloneTranslator() {
+  let locale: AppLocale = DEFAULT_LOCALE;
+  try {
+    locale = detectInitialLocale();
+  } catch {
+    // Storage unavailable: fall back to the default locale.
+  }
+  return {
+    locale,
+    t: (key: MessageKey, vars?: TranslationVars) => translate(locale, key, vars),
+  };
+}
+
 interface I18nContextValue {
   locale: AppLocale;
   setLocale: (locale: AppLocale) => void;
@@ -52,8 +69,12 @@ interface I18nContextValue {
    * given and the dictionary defines plural variants (`key.one`, `key.other`, ...),
    * the right form for the active locale is chosen automatically.
    */
-  t: (key: string, vars?: TranslationVars) => string;
+  t: (key: MessageKey, vars?: TranslationVars) => string;
 }
+
+/** The `t()` function: only keys defined in `en.ts` (plural keys by their base name) type-check. */
+export type Translate = I18nContextValue['t'];
+export type { MessageKey };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 

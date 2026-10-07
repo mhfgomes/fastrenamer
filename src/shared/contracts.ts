@@ -292,6 +292,21 @@ export type UpdateStatus =
 
 export type UpdateChannel = 'stable' | 'ea';
 
+/** Why this build can only check for updates and must download new versions manually. */
+export type UpdateManualReason =
+  /** macOS: `codesign` could not verify the app bundle. */
+  | 'mac-signature-unverified'
+  /** macOS: the bundle is not Developer ID-signed (ad-hoc or unsigned). */
+  | 'mac-unsigned'
+  /** Windows portable executable (no installer to update in place). */
+  | 'windows-portable';
+
+/**
+ * Machine-readable reason behind a non-automatic update state; the renderer translates it.
+ * `not-packaged` accompanies the `disabled` status (dev / unpackaged runs).
+ */
+export type UpdateReason = UpdateManualReason | 'not-packaged';
+
 export interface UpdateState {
   status: UpdateStatus;
   currentVersion: string;
@@ -301,7 +316,9 @@ export interface UpdateState {
   releaseName?: string;
   checkedAt?: string;
   progress?: UpdateProgress;
+  /** Free-form (untranslated) error text from electron-updater; only set for `error`. */
   message?: string;
+  reason?: UpdateReason;
   manualDownloadOnly?: boolean;
   downloadUrl?: string;
 }

@@ -1,5 +1,5 @@
 import { Download, ExternalLink, Palette, Plus, RefreshCcw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { PlatformTarget } from '@fastrenamer/rename-engine/types';
 import type { UpdateChannel } from '@shared/contracts';
 import {
@@ -15,10 +15,11 @@ import {
   cn,
 } from '../ui';
 import { AVAILABLE_LOCALES, useI18n, type AppLocale } from '../../i18n';
-import { formatBytes, getUpdateStatusLabel, getUpdateSummary, getUpdateTone } from '../../app/update-utils';
+import { formatBytes, formatPercent, getUpdateStatusLabel, getUpdateSummary, getUpdateTone } from '../../app/update-utils';
 import type { useUpdates } from '../../hooks/useUpdates';
 import type { useThemeManager } from '../../hooks/useThemeManager';
 import { THEME_TOKEN_FIELDS } from '../../themes';
+import { getThemeName } from '../../app/theme-labels';
 import { SettingsSection, ThemeOptionCard, ThemeTokenEditor, type SettingsSectionId } from './SettingsTheme';
 
 export function SettingsDrawer({
@@ -49,6 +50,11 @@ export function SettingsDrawer({
     deleteCustomTheme,
   } = themeManager;
   const activeCustomTheme = theme.kind === 'custom' ? theme : null;
+  const idPrefix = useId();
+  const channelId = `${idPrefix}-channel`;
+  const localeId = `${idPrefix}-locale`;
+  const themeNameId = `${idPrefix}-theme-name`;
+  const unknownVersion = t('updates.version_unknown');
 
   function toggleSettingsSection(section: SettingsSectionId) {
     setOpenSettingsSection((current) => (current === section ? null : section));
@@ -78,13 +84,13 @@ export function SettingsDrawer({
           onToggle={() => toggleSettingsSection('updates')}
         >
           <div className="rounded-xl border border-border bg-card p-3">
-            <label className="space-y-2">
-              <span className="text-xs text-muted-foreground">{t('updates.channel.label')}</span>
+            <div className="space-y-2">
+              <label htmlFor={channelId} className="text-xs text-muted-foreground">{t('updates.channel.label')}</label>
               <Select
                 value={updateState.channel}
                 onValueChange={(value) => void updates.changeUpdateChannel(value as UpdateChannel)}
               >
-                <SelectTrigger>
+                <SelectTrigger id={channelId}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -95,13 +101,13 @@ export function SettingsDrawer({
               <p className="text-xs text-muted-foreground">
                 {updateState.channel === 'ea' ? t('updates.channel.helper_ea') : t('updates.channel.helper_stable')}
               </p>
-            </label>
+            </div>
           </div>
 
-          <p className="mt-3 text-xs text-muted-foreground">{getUpdateSummary(updateState, t)}</p>
+          <p className="mt-3 text-xs text-muted-foreground">{getUpdateSummary(updateState, t, locale)}</p>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <Badge>{t('updates.current', { version: updateState.currentVersion })}</Badge>
+            <Badge>{t('updates.current', { version: updateState.currentVersion || unknownVersion })}</Badge>
             {updateState.availableVersion && updateState.availableVersion !== updateState.currentVersion && (
               <Badge tone="accent">{t('updates.latest', { version: updateState.availableVersion })}</Badge>
             )}
@@ -122,8 +128,8 @@ export function SettingsDrawer({
               </div>
               <p className="mt-2 text-[11px] text-muted-foreground">
                 {t('updates.speed', {
-                  percent: updateState.progress.percent.toFixed(0),
-                  speed: formatBytes(updateState.progress.bytesPerSecond),
+                  percent: formatPercent(updateState.progress.percent, locale),
+                  speed: formatBytes(updateState.progress.bytesPerSecond, locale),
                 })}
               </p>
             </div>
@@ -166,10 +172,10 @@ export function SettingsDrawer({
           onToggle={() => toggleSettingsSection('language')}
         >
           <div className="rounded-xl border border-border bg-card p-3">
-            <label className="space-y-2">
-              <span className="text-xs text-muted-foreground">{t('locale.label')}</span>
+            <div className="space-y-2">
+              <label htmlFor={localeId} className="text-xs text-muted-foreground">{t('locale.label')}</label>
               <Select value={locale} onValueChange={(value) => setLocale(value as AppLocale)}>
-                <SelectTrigger>
+                <SelectTrigger id={localeId}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -181,12 +187,12 @@ export function SettingsDrawer({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">{t('locale.helper')}</p>
-            </label>
+            </div>
           </div>
         </SettingsSection>
         <SettingsSection
           title={t('settings.appearance')}
-          badge={<Badge tone="accent">{theme.name}</Badge>}
+          badge={<Badge tone="accent">{getThemeName(theme, t)}</Badge>}
           open={openSettingsSection === 'appearance'}
           onToggle={() => toggleSettingsSection('appearance')}
         >
@@ -239,9 +245,10 @@ export function SettingsDrawer({
                   </Button>
                 </div>
 
-                <label className="space-y-2">
-                  <span className="text-xs text-muted-foreground">{t('appearance.theme_name')}</span>
+                <div className="space-y-2">
+                  <label htmlFor={themeNameId} className="text-xs text-muted-foreground">{t('appearance.theme_name')}</label>
                   <Input
+                    id={themeNameId}
                     value={activeCustomTheme.name}
                     onChange={(event) => renameCustomTheme(activeCustomTheme.id, event.target.value)}
                     onBlur={(event) => {
@@ -252,7 +259,7 @@ export function SettingsDrawer({
                     }}
                     placeholder={t('appearance.theme_name_placeholder')}
                   />
-                </label>
+                </div>
 
                 <div className="grid gap-3 lg:grid-cols-2">
                   {THEME_TOKEN_FIELDS.map((field) => (

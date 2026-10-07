@@ -14,7 +14,11 @@ import {
   type ThemeTokenKey,
   type ThemeTokens,
   createCustomTheme,
+  parseLegacyBasedOnName,
 } from '../themes';
+import { getThemeName } from '../app/theme-labels';
+
+import type { Translate } from '../i18n';
 
 export const THEME_TOKEN_CSS_VARIABLES: Record<ThemeTokenKey, string> = {
   background: '--background',
@@ -85,12 +89,27 @@ export function parseStoredCustomThemes() {
         return [];
       }
 
+      // Missing names/descriptions stay empty and are filled in with localized fallbacks at render time.
+      const name = typeof theme.name === 'string' ? theme.name : '';
+      let description = typeof theme.description === 'string' ? theme.description.trim() : '';
+      let basedOnName = typeof theme.basedOnName === 'string' && theme.basedOnName.trim()
+        ? theme.basedOnName
+        : undefined;
+      const legacyBasedOn = parseLegacyBasedOnName(description);
+      if (legacyBasedOn !== undefined) {
+        description = '';
+        // Older versions rewrote this to the theme's own name (or "your palette") on rename,
+        // which says nothing about the source theme: drop it.
+        if (!basedOnName && legacyBasedOn !== name.trim() && legacyBasedOn !== 'your palette') {
+          basedOnName = legacyBasedOn;
+        }
+      }
+
       return [{
         id: typeof theme.id === 'string' && theme.id ? theme.id : `custom-${crypto.randomUUID()}`,
-        name: typeof theme.name === 'string' && theme.name.trim() ? theme.name : 'Custom Theme',
-        description: typeof theme.description === 'string' && theme.description.trim()
-          ? theme.description
-          : 'User-created theme.',
+        name,
+        description,
+        ...(basedOnName ? { basedOnName } : {}),
         baseThemeId,
         tokens,
         kind: 'custom',
@@ -112,7 +131,7 @@ export function applyTheme(theme: AppTheme) {
   }
 }
 
-export function useThemeManager() {
+export function useThemeManager(t: Translate) {
   const [customThemes, setCustomThemes] = useState<AppTheme[]>(() => parseStoredCustomThemes());
   const [activeThemeId, setActiveThemeId] = useState(() => {
     const storedThemeId = localStorage.getItem(ACTIVE_THEME_STORAGE_KEY);
@@ -144,7 +163,11 @@ export function useThemeManager() {
   }, [customThemes]);
 
   function createThemeFrom(themeToClone: AppTheme) {
-    const nextTheme = createCustomTheme(themeToClone);
+    const sourceName = getThemeName(themeToClone, t);
+    const nextTheme = createCustomTheme(themeToClone, {
+      name: t('theme.copy_name', { name: sourceName }),
+      basedOnName: sourceName,
+    });
     setCustomThemes((current) => [nextTheme, ...current]);
     setActiveThemeId(nextTheme.id);
   }
@@ -171,7 +194,7 @@ export function useThemeManager() {
       setCustomThemes((current) =>
         current.map((candidate) =>
           candidate.id === themeId
-            ? { ...candidate, name, description: `Custom theme based on ${name || 'your palette'}.` }
+            ? { ...candidate, name }
             : candidate,
         ),
       );

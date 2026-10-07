@@ -5,7 +5,7 @@ import { SORT_MODE_STORAGE_KEY, SOURCE_MODE_OPTIONS } from '../app/defaults';
 import { getErrorMessage } from '../app/ipc-errors';
 import { getAvailableSourceModes, getSourceModeMeta, isFileDropEvent, sortSourceSelections } from '../app/source-meta';
 
-type Translate = (key: string, vars?: Record<string, unknown>) => string;
+import type { Translate } from '../i18n';
 
 function readStoredSortMode(): SortMode {
   const stored = localStorage.getItem(SORT_MODE_STORAGE_KEY);

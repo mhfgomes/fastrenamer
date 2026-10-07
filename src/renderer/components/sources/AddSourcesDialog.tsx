@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { FileInput, Trash2 } from 'lucide-react';
 import type { SortMode, SourceMode } from '@fastrenamer/rename-engine/types';
 import {
@@ -22,6 +22,15 @@ export function AddSourcesDialog({ dialog }: { dialog: AddSourcesDialogState }) 
   const { t } = useI18n();
   const sourceModeMeta = useMemo(() => getSourceModeMeta(t), [t]);
   const sortModeMeta = useMemo(() => getSortModeMeta(t), [t]);
+  const idPrefix = useId();
+  const ids = {
+    mode: `${idPrefix}-mode`,
+    modeHelp: `${idPrefix}-mode-help`,
+    filter: `${idPrefix}-filter`,
+    filterHelp: `${idPrefix}-filter-help`,
+    sort: `${idPrefix}-sort`,
+    sortHelp: `${idPrefix}-sort-help`,
+  };
 
   return (
     <Modal
@@ -33,14 +42,14 @@ export function AddSourcesDialog({ dialog }: { dialog: AddSourcesDialogState }) 
       <div className="space-y-5 p-5">
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           <div className="space-y-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label htmlFor={ids.mode} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {t('sources.set')}
             </label>
             <Select
               value={dialog.draftSourceMode}
               onValueChange={(value) => dialog.onDraftSourceModeChange(value as SourceMode)}
             >
-              <SelectTrigger>
+              <SelectTrigger id={ids.mode} aria-describedby={ids.modeHelp}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -64,20 +73,22 @@ export function AddSourcesDialog({ dialog }: { dialog: AddSourcesDialogState }) 
                 )}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">{sourceModeMeta[dialog.draftSourceMode].detail}</p>
+            <p id={ids.modeHelp} className="text-xs text-muted-foreground">{sourceModeMeta[dialog.draftSourceMode].detail}</p>
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label htmlFor={ids.filter} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {t('sources.filter')}
             </label>
             <Input
+              id={ids.filter}
+              aria-describedby={ids.filterHelp}
               value={dialog.draftFileNamePattern}
               onChange={(e) => dialog.onDraftFileNamePatternChange(e.target.value)}
               placeholder={t('sources.filter.placeholder')}
               disabled={!sourceModeMeta[dialog.draftSourceMode].supportsFilter}
             />
-            <p className="text-xs text-muted-foreground">
+            <p id={ids.filterHelp} className="text-xs text-muted-foreground">
               {sourceModeMeta[dialog.draftSourceMode].supportsFilter
                 ? t('sources.filter.help_supported')
                 : t('sources.filter.help_unsupported')}
@@ -85,14 +96,14 @@ export function AddSourcesDialog({ dialog }: { dialog: AddSourcesDialogState }) 
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label htmlFor={ids.sort} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {t('sources.sort')}
             </label>
             <Select
               value={dialog.draftSortMode}
               onValueChange={(value) => dialog.onDraftSortModeChange(value as SortMode)}
             >
-              <SelectTrigger>
+              <SelectTrigger id={ids.sort} aria-describedby={ids.sortHelp}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -103,7 +114,7 @@ export function AddSourcesDialog({ dialog }: { dialog: AddSourcesDialogState }) 
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">{t('sources.sort.help')}</p>
+            <p id={ids.sortHelp} className="text-xs text-muted-foreground">{t('sources.sort.help')}</p>
           </div>
         </div>
 
@@ -137,7 +148,7 @@ export function AddSourcesDialog({ dialog }: { dialog: AddSourcesDialogState }) 
                       onClick={() => dialog.onRemoveSource(source.path)}
                       aria-label={t('sources.remove', { name: source.name })}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </IconButton>
                   </div>
                 </div>

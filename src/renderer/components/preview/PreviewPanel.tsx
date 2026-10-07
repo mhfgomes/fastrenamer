@@ -50,7 +50,7 @@ export const PreviewPanel = memo(function PreviewPanel({
         title={t('preview.title')}
         detail={t('preview.detail')}
         actions={
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('preview.filter_label')}>
             {STATUS_OPTIONS.filter((status) => statusCounts[status] > 0).map((status) => {
               const active = statusFilters.includes(status);
               const toneMap: Record<string, string> = {
@@ -62,6 +62,8 @@ export const PreviewPanel = memo(function PreviewPanel({
               return (
                 <button
                   key={status}
+                  type="button"
+                  aria-pressed={active}
                   onClick={() => onToggleFilter(status)}
                   className={cn(
                     'rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-all duration-150',
@@ -70,7 +72,7 @@ export const PreviewPanel = memo(function PreviewPanel({
                       : 'border-border bg-surface text-muted-foreground hover:border-border/80',
                   )}
                 >
-                  {status} {statusCounts[status]}
+                  {t(`preview.status.${status}`)} {statusCounts[status]}
                 </button>
               );
             })}
@@ -121,7 +123,7 @@ export const PreviewPanel = memo(function PreviewPanel({
                   className="border-b border-border/40 transition-colors hover:bg-surface/60"
                 >
                   <td className="px-4 py-2.5 whitespace-nowrap">
-                    <Badge dot tone={row.status}>{row.status}</Badge>
+                    <Badge dot tone={row.status}>{t(`preview.status.${row.status}`)}</Badge>
                   </td>
                   <td className="px-4 py-2.5 font-mono text-xs break-all text-muted-foreground">
                     {row.originalName}

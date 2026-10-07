@@ -4,12 +4,13 @@ import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import electronUpdater from 'electron-updater';
 import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater';
-import type { UpdateChannel, UpdateState } from '../src/shared/contracts';
+import type { UpdateChannel, UpdateManualReason, UpdateState } from '../src/shared/contracts';
 import {
   applyUpdateChannelSettings,
   getReleaseDownloadUrl,
   resolveDefaultUpdateChannel,
 } from './update-channel';
+import { resolveManualUpdateReason } from './update-reason';
 
 const { autoUpdater } = electronUpdater;
 
@@ -25,42 +26,17 @@ function toIsoDate(value?: string | Date) {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
-function getMacManualDownloadMessage() {
-  if (process.platform !== 'darwin' || !app.isPackaged) {
-    return undefined;
-  }
-
-  const appBundlePath = path.resolve(process.execPath, '..', '..', '..');
-  const result = spawnSync('codesign', ['-dv', '--verbose=4', appBundlePath], {
-    encoding: 'utf8',
+function getManualUpdateReason() {
+  return resolveManualUpdateReason({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    portableExecutableFile: process.env.PORTABLE_EXECUTABLE_FILE,
+    inspectCodeSignature: () => {
+      const appBundlePath = path.resolve(process.execPath, '..', '..', '..');
+      const result = spawnSync('codesign', ['-dv', '--verbose=4', appBundlePath], { encoding: 'utf8' });
+      return { status: result.status, output: `${result.stdout}\n${result.stderr}` };
+    },
   });
-
-  if (result.status !== 0) {
-    return 'Automatic updates are unavailable because this macOS app build could not be verified for signing.';
-  }
-
-  const output = `${result.stdout}\n${result.stderr}`;
-  const hasDeveloperIdAuthority = output.includes('Authority=Developer ID Application:');
-  const hasTeamIdentifier = !output.includes('TeamIdentifier=not set');
-  const isAdHocSigned = output.includes('Signature=adhoc');
-
-  if (!hasDeveloperIdAuthority || !hasTeamIdentifier || isAdHocSigned) {
-    return 'This macOS build is not Developer ID-signed, so updates must be downloaded manually from GitHub Releases.';
-  }
-
-  return undefined;
-}
-
-function getWindowsPortableManualDownloadMessage() {
-  if (process.platform !== 'win32' || !app.isPackaged) {
-    return undefined;
-  }
-
-  if (!process.env.PORTABLE_EXECUTABLE_FILE) {
-    return undefined;
-  }
-
-  return 'This Windows portable build can check for updates, but new versions must be downloaded manually from GitHub Releases.';
 }
 
 function getChannelFilePath() {
@@ -113,7 +89,7 @@ export class AppUpdaterManager {
   private initialized = false;
   private checking = false;
   private manualDownloadOnly = false;
-  private manualDownloadMessage?: string;
+  private manualReason?: UpdateManualReason;
 
   constructor(private readonly getWindow: () => BrowserWindow | null) {}
 
@@ -138,13 +114,13 @@ export class AppUpdaterManager {
         status: 'disabled',
         currentVersion: app.getVersion(),
         channel: this.channel,
-        message: 'Automatic updates are only available in installed release builds.',
+        reason: 'not-packaged',
       });
       return;
     }
 
-    this.manualDownloadMessage = getMacManualDownloadMessage() ?? getWindowsPortableManualDownloadMessage();
-    this.manualDownloadOnly = Boolean(this.manualDownloadMessage);
+    this.manualReason = getManualUpdateReason();
+    this.manualDownloadOnly = Boolean(this.manualReason);
     applyUpdateChannelSettings(autoUpdater, this.channel);
 
     if (this.manualDownloadOnly) {
@@ -152,7 +128,7 @@ export class AppUpdaterManager {
         ...this.state,
         channel: this.channel,
         manualDownloadOnly: true,
-        message: this.manualDownloadMessage,
+        reason: this.manualReason,
         downloadUrl: getReleaseDownloadUrl(this.channel),
       });
     } else {
@@ -170,7 +146,7 @@ export class AppUpdaterManager {
         ...toBaseState(undefined, this.state, this.channel),
         status: 'checking',
         checkedAt: new Date().toISOString(),
-        message: this.manualDownloadMessage,
+        reason: this.manualReason,
       });
     });
 
@@ -180,9 +156,7 @@ export class AppUpdaterManager {
         ...toBaseState(info, this.state, this.channel),
         status: 'available',
         checkedAt: new Date().toISOString(),
-        message: this.manualDownloadOnly
-          ? `Version ${info.version} is available. Open GitHub to download the signed build manually.`
-          : undefined,
+        reason: this.manualReason,
         manualDownloadOnly: this.manualDownloadOnly,
         downloadUrl,
       });
@@ -193,7 +167,7 @@ export class AppUpdaterManager {
         ...toBaseState(info, this.state, this.channel),
         status: 'up-to-date',
         checkedAt: new Date().toISOString(),
-        message: this.manualDownloadMessage,
+        reason: this.manualReason,
         manualDownloadOnly: this.manualDownloadOnly,
         downloadUrl: this.manualDownloadOnly ? getReleaseDownloadUrl(this.channel) : undefined,
       });

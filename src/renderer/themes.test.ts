@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createCustomTheme,
   getThemeSnapshot,
+  parseLegacyBasedOnName,
   migrateLegacyThemeId,
   resolveTheme,
   THEME_PRESETS,
@@ -20,9 +21,15 @@ describe('theme helpers', () => {
   });
 
   it('resolves custom themes and falls back to the default preset', () => {
-    const customTheme = createCustomTheme(THEME_PRESETS[0], 'Night Shift');
+    const customTheme = createCustomTheme(THEME_PRESETS[0], { name: 'Night Shift', basedOnName: 'Dark' });
     expect(resolveTheme(customTheme.id, [customTheme]).id).toBe(customTheme.id);
+    expect(customTheme).toMatchObject({ name: 'Night Shift', basedOnName: 'Dark', kind: 'custom' });
     expect(resolveTheme('missing-theme', []).id).toBe(THEME_PRESETS[0].id);
+  });
+
+  it('recovers the source theme name from legacy English descriptions', () => {
+    expect(parseLegacyBasedOnName('Custom theme based on Dark.')).toBe('Dark');
+    expect(parseLegacyBasedOnName('My own palette')).toBeUndefined();
   });
 
   it('creates theme snapshots for persistence', () => {
