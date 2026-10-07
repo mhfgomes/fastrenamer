@@ -4,15 +4,9 @@ name: EA Release
 permissions: {}
 
 on:
-  # Publish automatically after CI passes for every push to main.
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-    branches:
-      - main
-  # Allow re-running an EA release by hand.
+  # Batch changes into one EA release every three hours (UTC).
+  schedule:
+    - cron: '17 */3 * * *'
   workflow_dispatch:
 
 # Publish one EA release at a time. Never cancel a run that is in progress: it
@@ -24,30 +18,18 @@ concurrency:
 
 jobs:
   verify_ci:
-    name: Verify CI Passed
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main')
+    name: Check Changes and Verify CI
     runs-on: ubuntu-latest
     permissions:
       actions: read
+      contents: read
 
     outputs:
-      release_sha: ${{ steps.sha.outputs.release_sha }}
+      release_sha: ${{ steps.changes.outputs.release_sha }}
+      should_release: ${{ steps.changes.outputs.should_release }}
 
     steps:
-      - name: Resolve release commit
-        id: sha
-        shell: bash
-        env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-        run: |
-          echo "release_sha=${RELEASE_SHA}" >> "${GITHUB_OUTPUT}"
-
       - name: Require main branch
-        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
@@ -55,21 +37,55 @@ jobs:
             exit 1
           fi
 
-      - name: Check CI succeeded for this commit
-        if: github.event_name == 'workflow_dispatch'
+      - name: Check for changes since the last published EA
+        id: changes
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
+        run: |
+          # Resolve main after acquiring the concurrency slot so queued runs
+          # batch the newest changes instead of releasing stale event SHAs.
+          release_sha="$(gh api "repos/${GH_REPO}/commits/main" --jq .sha)"
+          echo "release_sha=${release_sha}" >> "${GITHUB_OUTPUT}"
+
+          # Drafts (including failed builds) and stable releases are not an EA
+          # baseline. Paginate so older EAs remain visible after many releases.
+          latest_ea_tag="$(
+            gh api --paginate --slurp "repos/${GH_REPO}/releases?per_page=100" |
+              jq -r '[.[][] | select(.draft == false and .prerelease == true) | select(.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-ea\\.[0-9]+$"))] | sort_by(.published_at) | last | .tag_name // empty'
+          )"
+
+          if [ -n "${latest_ea_tag}" ]; then
+            # Resolve the actual tag: target_commitish can be a branch name.
+            published_sha="$(gh api "repos/${GH_REPO}/commits/${latest_ea_tag}" --jq .sha)"
+            if [ "${published_sha}" = "${release_sha}" ]; then
+              echo "should_release=false" >> "${GITHUB_OUTPUT}"
+              echo "No changes since ${latest_ea_tag}; skipping EA release." | tee -a "${GITHUB_STEP_SUMMARY}"
+              exit 0
+            fi
+          fi
+
+          echo "should_release=true" >> "${GITHUB_OUTPUT}"
+          echo "New changes at ${release_sha}; checking CI before creating an EA release." | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Check CI succeeded for this commit
+        if: steps.changes.outputs.should_release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ steps.changes.outputs.release_sha }}
         run: |
           conclusion="$(
             gh run list \
               --repo "${GH_REPO}" \
               --workflow=ci.yml \
+              --branch=main \
+              --event=push \
               --commit="${SHA}" \
               --json conclusion,status \
-              --jq '[.[] | select(.status == "completed")] | first | .conclusion // empty'
+              --jq 'first | select(.status == "completed") | .conclusion // empty'
           )"
 
           if [ "${conclusion}" != "success" ]; then
@@ -81,6 +97,7 @@ jobs:
 
   prepare_ea_version:
     name: Prepare EA Version
+    if: needs.verify_ci.outputs.should_release == 'true'
     needs:
       - verify_ci
     runs-on: ubuntu-latest
