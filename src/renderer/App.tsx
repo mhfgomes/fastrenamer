@@ -103,6 +103,18 @@ export function App() {
     );
   }, [pushNotice, reloadMetadata]);
 
+  // Never let a drop fall through to the browser default, which would navigate
+  // the window to a dropped URL or file. File drops are handled on the root div.
+  useEffect(() => {
+    const preventDefault = (event: globalThis.DragEvent) => event.preventDefault();
+    window.addEventListener('dragover', preventDefault);
+    window.addEventListener('drop', preventDefault);
+    return () => {
+      window.removeEventListener('dragover', preventDefault);
+      window.removeEventListener('drop', preventDefault);
+    };
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
