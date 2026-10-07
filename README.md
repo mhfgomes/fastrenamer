@@ -123,6 +123,31 @@ Message format:
 
 ## Releases and code signing
 
+Release notes are maintained in [CHANGELOG.md](CHANGELOG.md).
+
+To prepare a stable release, update the version in `package.json`, add its changelog
+entry, and run the same checks as CI:
+
+```bash
+bun install --frozen-lockfile
+bun run typecheck
+bun run test
+node --test scripts/*.test.mjs
+bun run build
+```
+
+After merging the release preparation into `main`, tag that commit with the matching
+version and push the tag. For 0.2.0:
+
+```bash
+git tag -a v0.2.0 -m "Fast Renamer v0.2.0"
+git push origin v0.2.0
+```
+
+The tag push runs CI. Once it passes, the Release workflow creates a draft, builds
+all three platforms, verifies their assets, and publishes the release. GitHub
+generates the release notes automatically; the changelog contains the curated notes.
+
 - GitHub Actions builds unsigned artifacts for macOS, Windows, and Linux.
 - macOS auto-update installation requires a Developer ID-signed build. Unsigned or ad hoc-signed macOS builds fall back to manual download from GitHub Releases.
 - Windows portable builds can check for updates but must also be downloaded manually from GitHub Releases.
