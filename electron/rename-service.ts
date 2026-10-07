@@ -52,7 +52,61 @@ export const inProcessPlanner: PreviewPlanner = async (input) => planPreview(inp
 export interface PreviewOptions {
   planner?: PreviewPlanner;
   signal?: AbortSignal;
+  /** Clock used for planning time and plan-time expiry. Defaults to `Date.now`. */
+  clock?: () => number;
+  /** Where planning times are remembered per planId. Defaults to the process-wide registry. */
+  planTimes?: PlanTimeRegistry;
+  /** Plan at this time instead of `clock()` (execute uses it to replay an approved preview). */
+  plannedAt?: number;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Planning time of previews, kept in main so execute can replay the approved preview exactly.
+
+export const PLAN_TIME_TTL_MS = 60 * 60 * 1000;
+export const PLAN_TIME_LIMIT = 64;
+
+/**
+ * Remembers, per planId, the time a preview was planned at. Execute regenerates the plan with that
+ * time so date/time rules yield the targets the user reviewed, while the files are re-read and the
+ * planId is still compared. The time never comes from the renderer: it is looked up by planId, and
+ * a planId only matches if the regenerated operations are identical, so a remembered time can only
+ * ever reproduce an approved plan. Entries expire after `ttlMs`; an unknown or expired planId is
+ * planned at the current time (a time-dependent plan then reports planChanged).
+ */
+export class PlanTimeRegistry {
+  private readonly entries = new Map<string, { plannedAt: number; recordedAt: number }>();
+
+  constructor(
+    private readonly ttlMs = PLAN_TIME_TTL_MS,
+    private readonly limit = PLAN_TIME_LIMIT,
+  ) {}
+
+  remember(planId: string, plannedAt: number, now: number) {
+    this.entries.delete(planId);
+    this.entries.set(planId, { plannedAt, recordedAt: now });
+    this.prune(now);
+  }
+
+  lookup(planId: string, now: number): number | undefined {
+    this.prune(now);
+    return this.entries.get(planId)?.plannedAt;
+  }
+
+  private prune(now: number) {
+    for (const [planId, entry] of this.entries) {
+      if (now - entry.recordedAt > this.ttlMs || now < entry.recordedAt) {
+        this.entries.delete(planId);
+      }
+    }
+    while (this.entries.size > this.limit) {
+      const oldest = this.entries.keys().next().value as string;
+      this.entries.delete(oldest);
+    }
+  }
+}
+
+const defaultPlanTimes = new PlanTimeRegistry();
 
 interface RenameExecutionStore extends RenameJournalWriter {
   recordRenameBatch(input: {
@@ -299,6 +353,8 @@ export async function generatePreviewForRequest(
   request: ServicePreviewRequest,
   options: PreviewOptions = {},
 ): Promise<AppPreviewResult> {
+  const clock = options.clock ?? Date.now;
+  const plannedAt = options.plannedAt ?? clock();
   const { items, skippedDirectories } = await resolveSourceItems(request, options.signal);
   throwIfAborted(options.signal);
   const planner = options.planner ?? inProcessPlanner;
@@ -309,24 +365,30 @@ export async function generatePreviewForRequest(
       platform: request.platform,
       sortMode: request.sortMode,
       fileNamePattern: request.fileNamePattern,
+      now: plannedAt,
     },
     options.signal,
   );
-  return { ...preview, planId: computePlanId(preview), skippedDirectories };
+  const planId = computePlanId(preview);
+  (options.planTimes ?? defaultPlanTimes).remember(planId, plannedAt, clock());
+  return { ...preview, planId, skippedDirectories };
 }
 
 /**
  * Keeps only the newest preview alive: starting a preview aborts the previous one (its directory
  * walk stops and its worker is terminated) and the stale call rejects with PreviewSupersededError.
  */
-export function createLatestPreviewRunner(planner: PreviewPlanner) {
+export function createLatestPreviewRunner(
+  planner: PreviewPlanner,
+  options: Pick<PreviewOptions, 'clock' | 'planTimes'> = {},
+) {
   let current: AbortController | null = null;
   return async (request: ServicePreviewRequest) => {
     current?.abort();
     const controller = new AbortController();
     current = controller;
     try {
-      return await generatePreviewForRequest(request, { planner, signal: controller.signal });
+      return await generatePreviewForRequest(request, { ...options, planner, signal: controller.signal });
     } catch (error) {
       if (controller.signal.aborted) {
         throw new PreviewSupersededError();
@@ -358,7 +420,10 @@ export async function executeRenameBatch(
 ): Promise<AppExecuteRenameBatchResult> {
   return withFileOperationLock('rename', async () => {
     // Regenerate and compare with what the user approved; never run a plan they did not see.
-    const preview = await generatePreviewForRequest(request, options);
+    // Files are re-read now, but date/time tokens use the approved preview's planning time.
+    const clock = options.clock ?? Date.now;
+    const approvedPlannedAt = (options.planTimes ?? defaultPlanTimes).lookup(request.planId, clock());
+    const preview = await generatePreviewForRequest(request, { ...options, plannedAt: approvedPlannedAt });
     const base = {
       ...preview,
       batchId: null,

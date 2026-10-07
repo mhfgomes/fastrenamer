@@ -1,10 +1,13 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryEntry, PlatformTarget, RenameBatchRecord } from '@fastrenamer/rename-engine';
 import { AppDatabase } from './db';
+import { planPreview } from './preview-planner';
 import {
+  PLAN_TIME_TTL_MS,
+  PlanTimeRegistry,
   OperationBusyError,
   PLAN_CHANGED_MESSAGE,
   PreviewSupersededError,
@@ -255,6 +258,119 @@ describe('execute and undo end to end', () => {
     } finally {
       await cleanup();
     }
+  });
+});
+
+describe('time-based rules', () => {
+  const timePrefix = request({
+    rules: [{ id: 'time', type: 'date_time', enabled: true, position: 'prefix', format: 'HHmmss', separator: '_' }],
+  });
+  // Local time, because the engine formats date tokens in local time.
+  const approvedAt = new Date(2026, 9, 7, 10, 27, 30, 900).getTime();
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('executes the approved targets even after the clock moved on', async () => {
+    await fs.writeFile(path.join(tempRoot, 'a.txt'), 'a');
+    const { database, cleanup } = await openDatabase();
+    try {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(approvedAt);
+      const preview = await generatePreviewForRequest({ ...timePrefix, sourcePaths: [tempRoot] });
+      expect(preview.rows[0].proposedName).toBe('102730_a.txt');
+
+      vi.setSystemTime(approvedAt + 1_200); // the user reviews the preview for a moment
+      const result = await executeRenameBatch({ ...timePrefix, sourcePaths: [tempRoot], planId: preview.planId }, database);
+      expect(result.planChanged).toBe(false);
+      expect(result.errors).toEqual([]);
+      expect(result.renamedCount).toBe(1);
+      expect(await fs.readdir(tempRoot)).toEqual(['102730_a.txt']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('still refuses a time-based plan when the files changed', async () => {
+    await fs.writeFile(path.join(tempRoot, 'a.txt'), 'a');
+    const { database, cleanup } = await openDatabase();
+    try {
+      let now = approvedAt;
+      const options = { clock: () => now, planTimes: new PlanTimeRegistry() };
+      const preview = await generatePreviewForRequest({ ...timePrefix, sourcePaths: [tempRoot] }, options);
+      await fs.writeFile(path.join(tempRoot, 'b.txt'), 'b');
+      now += 1_200;
+
+      const result = await executeRenameBatch(
+        { ...timePrefix, sourcePaths: [tempRoot], planId: preview.planId },
+        database,
+        options,
+      );
+      expect(result.planChanged).toBe(true);
+      expect(result.renamedCount).toBe(0);
+      expect((await fs.readdir(tempRoot)).sort()).toEqual(['a.txt', 'b.txt']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('does not replay a planning time that has expired or that it never issued', async () => {
+    await fs.writeFile(path.join(tempRoot, 'a.txt'), 'a');
+    const { database, cleanup } = await openDatabase();
+    try {
+      let now = approvedAt;
+      const options = { clock: () => now, planTimes: new PlanTimeRegistry() };
+      const preview = await generatePreviewForRequest({ ...timePrefix, sourcePaths: [tempRoot] }, options);
+      now += PLAN_TIME_TTL_MS + 1;
+
+      const expired = await executeRenameBatch(
+        { ...timePrefix, sourcePaths: [tempRoot], planId: preview.planId },
+        database,
+        options,
+      );
+      expect(expired.planChanged).toBe(true);
+
+      const unknown = await executeRenameBatch(
+        { ...timePrefix, sourcePaths: [tempRoot], planId: preview.planId },
+        database,
+        { clock: () => approvedAt + 1_200, planTimes: new PlanTimeRegistry() },
+      );
+      expect(unknown.planChanged).toBe(true);
+      expect(await fs.readdir(tempRoot)).toEqual(['a.txt']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('uses one planning time for every item and restores the real clock', () => {
+    const RealDate = Date;
+    const items = Array.from({ length: 3 }, (_unused, index) => ({
+      sourcePath: path.join(tempRoot, `f${index}.txt`),
+      name: `f${index}.txt`,
+      parentPath: tempRoot,
+      isDirectory: false,
+    }));
+    const preview = planPreview({
+      items,
+      rules: timePrefix.rules,
+      platform: hostPlatform,
+      sortMode: 'natural_path',
+      fileNamePattern: '',
+      now: approvedAt,
+    });
+    expect(preview.rows.map((row) => row.proposedName)).toEqual(['102730_f0.txt', '102730_f1.txt', '102730_f2.txt']);
+    expect(Date).toBe(RealDate);
+  });
+
+  it('expires and caps remembered planning times', () => {
+    const registry = new PlanTimeRegistry(1_000, 2);
+    registry.remember('a', 1, 0);
+    registry.remember('b', 2, 0);
+    registry.remember('c', 3, 0);
+    expect(registry.lookup('a', 0)).toBeUndefined();
+    expect(registry.lookup('c', 1_000)).toBe(3);
+    expect(registry.lookup('c', 1_001)).toBeUndefined();
   });
 });
 
