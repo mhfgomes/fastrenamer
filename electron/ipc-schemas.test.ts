@@ -11,10 +11,14 @@ import {
 } from '../src/shared/contracts';
 
 const absolutePath = process.platform === 'win32' ? 'C:\\tmp\\a' : '/tmp/a';
+const otherAbsolutePath = process.platform === 'win32' ? 'C:\\tmp\\b' : '/tmp/b';
 
 describe('IPC request schemas', () => {
   it('validates path list requests', () => {
-    expect(pathListRequestSchema.parse(['/tmp/a', '/tmp/b'])).toEqual(['/tmp/a', '/tmp/b']);
+    expect(pathListRequestSchema.parse([absolutePath, otherAbsolutePath])).toEqual([
+      absolutePath,
+      otherAbsolutePath,
+    ]);
     expect(() => pathListRequestSchema.parse([])).toThrow();
     expect(() => pathListRequestSchema.parse([''])).toThrow();
   });

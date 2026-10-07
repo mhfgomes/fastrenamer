@@ -18,15 +18,25 @@ export function createAppUrlPolicy(options: {
     return { kind: 'dev-server', origin: new URL(options.devServerUrl).origin };
   }
 
+  const platform = options.platform ?? process.platform;
   return {
     kind: 'file',
-    indexPath: path.resolve(options.indexPath),
-    platform: options.platform ?? process.platform,
+    indexPath: pathForPlatform(platform).resolve(options.indexPath),
+    platform,
   };
 }
 
+/**
+ * Path semantics follow the policy's platform rather than the host's, so the
+ * Windows rules can be exercised on any OS. For the default (host) platform
+ * this is the same module as `node:path`.
+ */
+function pathForPlatform(platform: NodeJS.Platform) {
+  return platform === 'win32' ? path.win32 : path.posix;
+}
+
 function normalizeFilePath(pathname: string, platform: NodeJS.Platform) {
-  const normalized = path.normalize(pathname);
+  const normalized = pathForPlatform(platform).normalize(pathname);
   return platform === 'win32' ? normalized.toLowerCase() : normalized;
 }
 
@@ -48,7 +58,7 @@ export function isAllowedAppUrl(rawUrl: string, policy: AppUrlPolicy): boolean {
 
   let filePath: string;
   try {
-    filePath = fileURLToPath(url);
+    filePath = fileURLToPath(url, { windows: policy.platform === 'win32' });
   } catch {
     return false;
   }

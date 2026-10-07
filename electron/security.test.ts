@@ -34,9 +34,42 @@ describe('isAllowedAppUrl', () => {
     expect(isAllowedAppUrl(indexUrl, policy)).toBe(false);
   });
 
-  it('compares Windows paths case-insensitively', () => {
-    const policy = { kind: 'file', indexPath: '/C:/App/index.html', platform: 'win32' } as const;
-    expect(isAllowedAppUrl('file:///c:/app/INDEX.html', { ...policy, indexPath: '/c:/app/index.html' })).toBe(true);
+  it('compares paths case-insensitively only on Windows', () => {
+    const policy = createAppUrlPolicy({ indexPath });
+    const upperCasedUrl = pathToFileURL(path.join(path.dirname(indexPath), 'INDEX.html')).href;
+    expect(isAllowedAppUrl(upperCasedUrl, policy)).toBe(process.platform === 'win32');
+  });
+});
+
+describe('isAllowedAppUrl with win32 path semantics', () => {
+  const winIndexPath = 'C:\\Program Files\\Fast Renamer\\resources\\app.asar\\dist-renderer\\index.html';
+  const winIndexUrl = 'file:///C:/Program%20Files/Fast%20Renamer/resources/app.asar/dist-renderer/index.html';
+  const policy = createAppUrlPolicy({ indexPath: winIndexPath, platform: 'win32' });
+
+  it('keeps the native drive-letter path', () => {
+    expect(policy).toEqual({ kind: 'file', indexPath: winIndexPath, platform: 'win32' });
+  });
+
+  it('allows the packaged index.html file URL', () => {
+    expect(isAllowedAppUrl(winIndexUrl, policy)).toBe(true);
+    expect(isAllowedAppUrl(`${winIndexUrl}#/settings`, policy)).toBe(true);
+    expect(isAllowedAppUrl(winIndexUrl.replace('file:///', 'file://localhost/'), policy)).toBe(true);
+  });
+
+  it('compares drive letter and path case-insensitively', () => {
+    expect(isAllowedAppUrl(winIndexUrl.toLowerCase(), policy)).toBe(true);
+    expect(isAllowedAppUrl(winIndexUrl.replace('index.html', 'INDEX.HTML'), policy)).toBe(true);
+    expect(isAllowedAppUrl(winIndexUrl.replace('file:///C:', 'file:///c:'), policy)).toBe(true);
+  });
+
+  it('rejects other files, drives, UNC hosts and traversal', () => {
+    expect(isAllowedAppUrl(winIndexUrl.replace('index.html', 'other.html'), policy)).toBe(false);
+    expect(isAllowedAppUrl(winIndexUrl.replace('file:///C:', 'file:///D:'), policy)).toBe(false);
+    expect(isAllowedAppUrl('file://server/share/index.html', policy)).toBe(false);
+    expect(isAllowedAppUrl('file:///C:/Windows/System32/drivers/etc/hosts', policy)).toBe(false);
+    expect(
+      isAllowedAppUrl(winIndexUrl.replace('dist-renderer/index.html', 'dist-renderer/../index.html'), policy),
+    ).toBe(false);
   });
 });
 
