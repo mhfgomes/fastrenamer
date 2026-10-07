@@ -25,19 +25,52 @@ export interface RenameJournalStore extends RenameJournalWriter {
   listUnfinishedJournals(): JournalRecord[];
 }
 
-type ProbedState = 'source' | 'temp' | 'target' | 'lost';
+export type ProbedState = 'source' | 'temp' | 'target' | 'lost';
 
-async function matchesAt(candidate: string, fingerprint: FileFingerprint) {
-  try {
-    const stats = await fsp.lstat(candidate, { bigint: true });
-    return fingerprintsMatch(fingerprint, fingerprintFromStats(stats));
-  } catch {
-    return false;
+/** The filesystem reads recovery needs; injectable so the decision logic can be unit tested. */
+export interface ProbeFs {
+  /** Identity of whatever `candidate` resolves to (case-insensitively on such volumes), or null. */
+  fingerprint(candidate: string): Promise<FileFingerprint | null>;
+  /** Exact directory-entry spellings in `directory`, or null when it cannot be read. */
+  listNames(directory: string): Promise<string[] | null>;
+}
+
+export const nodeProbeFs: ProbeFs = {
+  async fingerprint(candidate) {
+    try {
+      return fingerprintFromStats(await fsp.lstat(candidate, { bigint: true }));
+    } catch {
+      return null;
+    }
+  },
+  async listNames(directory) {
+    try {
+      return await fsp.readdir(directory);
+    } catch {
+      return null;
+    }
+  },
+};
+
+/**
+ * Picks where an item is among its candidate names (in priority order). On a case-insensitive
+ * volume `Foo.txt` and `foo.txt` resolve to the same file, so identity alone cannot tell whether a
+ * case-only rename happened: prefer a candidate whose exact spelling is a directory entry, and only
+ * fall back to identity alone (old behaviour) when no candidate is spelled exactly, e.g. because the
+ * directory could not be listed or the volume rewrote the name's Unicode normalization.
+ */
+export function chooseProbedState(
+  candidates: Array<{ state: ProbedState; identityMatches: boolean; spelledExactly: boolean }>,
+): ProbedState {
+  const exact = candidates.find((candidate) => candidate.identityMatches && candidate.spelledExactly);
+  if (exact) {
+    return exact.state;
   }
+  return candidates.find((candidate) => candidate.identityMatches)?.state ?? 'lost';
 }
 
 /** Finds where each journaled item currently is (temp, target or source name). */
-async function probeJournal(platform: PlatformTarget, entries: JournalEntry[]) {
+export async function probeJournal(platform: PlatformTarget, entries: JournalEntry[], probeFs: ProbeFs = nodeProbeFs) {
   const nodes = buildHierarchy(
     platform,
     entries.map((entry) => entry.sourcePath),
@@ -45,6 +78,15 @@ async function probeJournal(platform: PlatformTarget, entries: JournalEntry[]) {
   const states: ProbedState[] = entries.map(() => 'lost');
   const currentPaths: Array<string | null> = entries.map(() => null);
   const order = entries.map((_entry, index) => index).sort((left, right) => nodes[left].depth - nodes[right].depth);
+  const listings = new Map<string, Promise<Set<string> | null>>();
+  const namesIn = (directory: string) => {
+    let listing = listings.get(directory);
+    if (!listing) {
+      listing = probeFs.listNames(directory).then((names) => (names ? new Set(names) : null));
+      listings.set(directory, listing);
+    }
+    return listing;
+  };
 
   for (const index of order) {
     const entry = entries[index];
@@ -60,18 +102,27 @@ async function probeJournal(platform: PlatformTarget, entries: JournalEntry[]) {
       baseDir = path.join(parentPath, ...node.segments);
     }
 
+    const names = await namesIn(baseDir);
     const candidates: Array<[ProbedState, string]> = [
-      ['temp', path.join(baseDir, entry.tempName)],
-      ['target', path.join(baseDir, path.basename(entry.targetPath))],
-      ['source', path.join(baseDir, path.basename(entry.sourcePath))],
+      ['temp', entry.tempName],
+      ['target', path.basename(entry.targetPath)],
+      ['source', path.basename(entry.sourcePath)],
     ];
-    for (const [state, candidate] of candidates) {
-      if (await matchesAt(candidate, entry.fingerprint)) {
-        states[index] = state;
-        currentPaths[index] = candidate;
-        break;
-      }
-    }
+    const probed = await Promise.all(
+      candidates.map(async ([state, name]) => {
+        const current = await probeFs.fingerprint(path.join(baseDir, name));
+        return {
+          state,
+          name,
+          identityMatches: current !== null && fingerprintsMatch(entry.fingerprint, current),
+          spelledExactly: names?.has(name) ?? false,
+        };
+      }),
+    );
+    const state = chooseProbedState(probed);
+    states[index] = state;
+    const chosen = probed.find((candidate) => candidate.state === state);
+    currentPaths[index] = chosen ? path.join(baseDir, chosen.name) : null;
   }
 
   return { states, currentPaths };
