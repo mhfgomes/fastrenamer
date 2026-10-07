@@ -70,8 +70,9 @@ bun run start
 - UI language now persists across restarts and can be changed from `Settings > Appearance`.
 - Community translations live in `src/renderer/locales/`. See [Translations](#translations) for how to add a language.
 - Packaged releases can check GitHub Releases for updates automatically, download them in the background, and install on restart.
-- Every merge to `main` can publish Early Access installers through `.github/workflows/ea-release.yml` after CI passes.
+- Early Access checks `main` every three hours (at 00:17, 03:17, … UTC) through `.github/workflows/ea-release.yml`. If the commit differs from the last published EA and CI has passed, it publishes one release containing all changes since that EA. Unchanged commits skip the release; failed builds can be retried on the next run. You can also use **Run workflow** on `main` to run the same check manually.
 - Stable tags publish installers through `.github/workflows/release.yml` after CI passes. Switch between Stable and Early Access update channels in `Settings > Updates`.
+- Switching channels never downgrades. If you move from Early Access to Stable while running an Early Access build newer than the latest stable release, you stay on that build until a newer stable release ships, then update normally. To go back to an older stable version immediately, download and install it manually from GitHub Releases.
 - Pull requests and pushes to `main` run checks through `.github/workflows/ci.yml`.
 - Undo is blocked when current renamed files are missing, restore targets are occupied, or older batches overlap with newer undo-ready batches.
 

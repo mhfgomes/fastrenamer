@@ -24,6 +24,7 @@ describe('update channel helpers', () => {
     const updater = {
       channel: 'latest',
       allowPrerelease: false,
+      allowDowngrade: false,
     };
 
     applyUpdateChannelSettings(updater, 'ea');
@@ -33,6 +34,38 @@ describe('update channel helpers', () => {
     applyUpdateChannelSettings(updater, 'stable');
     expect(updater.channel).toBe('latest');
     expect(updater.allowPrerelease).toBe(false);
+  });
+
+  it('never allows downgrades even though electron-updater enables them when setting the channel', () => {
+    // Mirrors electron-updater 6.x AppUpdater: the `channel` setter forces
+    // `allowDowngrade = true`.
+    class FakeAppUpdater {
+      private _channel: string | null = null;
+      allowPrerelease = false;
+      allowDowngrade = false;
+
+      get channel() {
+        return this._channel;
+      }
+
+      set channel(value: string | null) {
+        this._channel = value;
+        this.allowDowngrade = true;
+      }
+    }
+
+    const updater = new FakeAppUpdater();
+
+    applyUpdateChannelSettings(updater, 'ea');
+    expect(updater.channel).toBe('ea');
+    expect(updater.allowDowngrade).toBe(false);
+
+    // Switching EA -> Stable must not downgrade a newer prerelease build to
+    // an older stable release.
+    applyUpdateChannelSettings(updater, 'stable');
+    expect(updater.channel).toBe('latest');
+    expect(updater.allowPrerelease).toBe(false);
+    expect(updater.allowDowngrade).toBe(false);
   });
 
   it('builds manual download URLs per channel', () => {

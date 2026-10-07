@@ -15,11 +15,17 @@ export function toUpdaterChannel(channel: UpdateChannel) {
 }
 
 export function applyUpdateChannelSettings(
-  updater: { channel: string | null; allowPrerelease: boolean },
+  updater: { channel: string | null; allowPrerelease: boolean; allowDowngrade: boolean },
   channel: UpdateChannel,
 ) {
   updater.channel = toUpdaterChannel(channel);
   updater.allowPrerelease = channel === 'ea';
+  // electron-updater's `channel` setter forces `allowDowngrade = true`. With
+  // autoDownload + autoInstallOnAppQuit that would silently install an older
+  // stable build (which may not understand a newer migrated database) when
+  // switching from EA to Stable. Never downgrade: users stay on their current
+  // build until a newer release ships on the selected channel.
+  updater.allowDowngrade = false;
 }
 
 export function getReleaseDownloadUrl(channel: UpdateChannel, version?: string) {
