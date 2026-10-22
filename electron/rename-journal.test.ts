@@ -1,3 +1,4 @@
+import { renameNoReplace } from './rename-no-replace';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import os from 'node:os';
@@ -54,12 +55,12 @@ async function listTree(root: string): Promise<string[]> {
 function crashAfter(steps: number): Partial<RenameFsOps> {
   let calls = 0;
   return {
-    rename: async (from, to) => {
+    renameNoReplace: async (from, to) => {
       calls += 1;
       if (calls > steps) {
         throw new Error('simulated crash');
       }
-      await fs.rename(from, to);
+      await renameNoReplace(from, to);
     },
   };
 }

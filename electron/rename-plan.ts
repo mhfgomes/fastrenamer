@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { renameNoReplace } from './rename-no-replace';
 import path from 'node:path';
 import { promises as fsp } from 'node:fs';
 import type { BigIntStats } from 'node:fs';
@@ -46,7 +47,8 @@ export interface RenameJournalWriter {
 }
 
 export interface RenameFsOps {
-  rename(from: string, to: string): Promise<void>;
+  /** Must atomically refuse any existing destination, including directories and symlinks. */
+  renameNoReplace(from: string, to: string): Promise<void>;
   lstat(target: string): Promise<BigIntStats>;
 }
 
@@ -89,7 +91,7 @@ export const MAX_NAME_LENGTH = 255;
 export const TEMP_NAME_PREFIX = '.frtmp-';
 
 const defaultFsOps: RenameFsOps = {
-  rename: (from, to) => fsp.rename(from, to),
+  renameNoReplace,
   lstat: (target) => fsp.lstat(target, { bigint: true }),
 };
 
@@ -115,10 +117,6 @@ export function fingerprintsMatch(expected: FileFingerprint, actual: FileFingerp
     return expected.isDirectory === actual.isDirectory;
   }
   return expected.size === actual.size && expected.mtimeNs === actual.mtimeNs;
-}
-
-function sameEntry(left: BigIntStats, right: BigIntStats) {
-  return left.ino !== 0n && left.dev === right.dev && left.ino === right.ino;
 }
 
 function isErrorCode(error: unknown, code: string) {
@@ -397,8 +395,7 @@ export async function runRenamePlan(
       states[index] = 'temp';
       const to = currentPath(index);
       states[index] = 'source';
-      await assertVacant(fsOps, to, null);
-      await fsOps.rename(from, to);
+      await fsOps.renameNoReplace(from, to);
       states[index] = 'temp';
       completed.push({ from, to });
     }
@@ -408,8 +405,7 @@ export async function runRenamePlan(
       states[index] = 'target';
       const to = currentPath(index);
       states[index] = 'temp';
-      await assertVacant(fsOps, to, from);
-      await fsOps.rename(from, to);
+      await fsOps.renameNoReplace(from, to);
       states[index] = 'target';
       completed.push({ from, to });
     }
@@ -457,35 +453,11 @@ export async function runRenamePlan(
   };
 }
 
-/**
- * Refuses to overwrite: `destination` must not exist, unless it is the very entry being moved
- * (a case-only rename on a case-insensitive volume).
- */
-async function assertVacant(fsOps: RenameFsOps, destination: string, movingPath: string | null) {
-  let existing: BigIntStats;
-  try {
-    existing = await fsOps.lstat(destination);
-  } catch (error) {
-    if (isErrorCode(error, 'ENOENT')) {
-      return;
-    }
-    throw error;
-  }
-  if (movingPath) {
-    const moving = await fsOps.lstat(movingPath);
-    if (sameEntry(existing, moving)) {
-      return;
-    }
-  }
-  throw new Error(`Refusing to overwrite existing item: ${destination}`);
-}
-
 async function rollback(fsOps: RenameFsOps, completed: CompletedStep[]) {
   const errors: string[] = [];
   for (const step of [...completed].reverse()) {
     try {
-      await assertVacant(fsOps, step.from, step.to);
-      await fsOps.rename(step.to, step.from);
+      await fsOps.renameNoReplace(step.to, step.from);
     } catch (error) {
       errors.push(`${step.to} -> ${step.from}: ${describeError(error)}`);
     }

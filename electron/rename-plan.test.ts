@@ -1,3 +1,4 @@
+import { renameNoReplace } from './rename-no-replace';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -235,13 +236,13 @@ describe('runRenamePlan', () => {
       {
         journal,
         fs: {
-          rename: async (from, to) => {
+          renameNoReplace: async (from, to) => {
             renames += 1;
             if (renames === 2) {
               // Something else creates the second target after the plan was validated.
               await fs.writeFile(intruder, 'intruder');
             }
-            await fs.rename(from, to);
+            await renameNoReplace(from, to);
           },
         },
       },
@@ -251,6 +252,68 @@ describe('runRenamePlan', () => {
     await expect(promise).rejects.toMatchObject({ rolledBack: true });
     expect(await listTree(tempRoot)).toEqual(['a.txt', 'b-new.txt', 'b.txt']);
     await expect(fs.readFile(intruder, 'utf8')).resolves.toBe('intruder');
+    expect(journal.journals[0].status).toBe('rolled_back');
+  });
+
+  for (const isDirectory of [false, true]) {
+    for (const phase of ['staging', 'final', 'rollback'] as const) {
+      it(`atomically preserves a racing ${isDirectory ? 'directory' : 'file'} during ${phase}`, async () => {
+        const source = path.join(tempRoot, 'source');
+        const target = path.join(tempRoot, 'target');
+        if (isDirectory) {
+          await fs.mkdir(source);
+          await fs.writeFile(path.join(source, 'child'), 'original');
+        } else {
+          await fs.writeFile(source, 'original');
+        }
+        const original = await fs.lstat(source, { bigint: true });
+        const journal = new MemoryJournal();
+        let calls = 0;
+        let intruderPath = '';
+        let intruderIno = 0n;
+        const collisionCall = phase === 'staging' ? 1 : phase === 'final' ? 2 : 3;
+        const result = runRenamePlan('linux', [{ sourcePath: source, targetPath: target, isDirectory }], {
+          journal,
+          fs: {
+            renameNoReplace: async (from, to) => {
+              calls++;
+              if (phase === 'rollback' && calls === 2) throw new Error('force rollback');
+              if (calls === collisionCall) {
+                // Runs at the mutation boundary, after every possible preflight/check.
+                // An empty directory is deliberate: POSIX rename would silently replace it.
+                intruderPath = to;
+                if (isDirectory) await fs.mkdir(to);
+                else await fs.writeFile(to, 'intruder', { flag: 'wx' });
+                intruderIno = (await fs.lstat(to, { bigint: true })).ino;
+              }
+              await renameNoReplace(from, to);
+            },
+          },
+        });
+        await expect(result).rejects.toMatchObject({ rolledBack: phase !== 'rollback' });
+        expect((await fs.lstat(intruderPath, { bigint: true })).ino).toBe(intruderIno);
+        if (!isDirectory) expect(await fs.readFile(intruderPath, 'utf8')).toBe('intruder');
+        const originalPath = phase === 'rollback'
+          ? path.join(tempRoot, journal.journals[0].entries[0].tempName)
+          : source;
+        expect((await fs.lstat(originalPath, { bigint: true })).ino).toBe(original.ino);
+        expect(await fs.readFile(isDirectory ? path.join(originalPath, 'child') : originalPath, 'utf8')).toBe('original');
+        expect(journal.journals[0].status).toBe(phase === 'rollback' ? 'rollback_failed' : 'rolled_back');
+      });
+    }
+  }
+
+  it('fails closed when exclusive rename is unsupported', async () => {
+    const source = path.join(tempRoot, 'source');
+    await fs.writeFile(source, 'original');
+    const journal = new MemoryJournal();
+    await expect(runRenamePlan('linux', [{
+      sourcePath: source, targetPath: path.join(tempRoot, 'target'), isDirectory: false,
+    }], { journal, fs: { renameNoReplace: async () => {
+      throw Object.assign(new Error('exclusive rename unsupported'), { code: 'ENOTSUP' });
+    } } })).rejects.toMatchObject({ rolledBack: true });
+    expect(await fs.readdir(tempRoot)).toEqual(['source']);
+    expect(await fs.readFile(source, 'utf8')).toBe('original');
     expect(journal.journals[0].status).toBe('rolled_back');
   });
 
@@ -294,12 +357,12 @@ describe('runRenamePlan', () => {
           {
             journal,
             fs: {
-              rename: async (from, to) => {
+              renameNoReplace: async (from, to) => {
                 calls += 1;
                 if (calls === failAt) {
                   throw Object.assign(new Error('simulated EIO'), { code: 'EIO' });
                 }
-                await fs.rename(from, to);
+                await renameNoReplace(from, to);
               },
             },
           },
