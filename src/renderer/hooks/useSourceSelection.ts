@@ -270,7 +270,7 @@ export function useSourceSelection({
         setFileNamePattern(draftFileNamePattern);
         setSortModeState(draftSortMode);
         onErrorRef.current(null);
-        setAddSourcesOpen(false);
+        onDialogOpenChange(false);
       },
     },
   };
