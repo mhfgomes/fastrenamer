@@ -172,6 +172,7 @@ export const fr: LocaleDict = {
   'editor.extension.remove': 'Supprimer',
 
   'sources.add.title': 'Ajouter des sources',
+  'sources.add.apply': 'Appliquer les modifications',
   'sources.add.description': 'Choisissez le type d’éléments à renommer avant d’ouvrir le sélecteur de fichiers.',
   'sources.add.dropped_title': 'Utiliser les éléments déposés',
   'sources.add.dropped_description': 'Choisissez comment Fast Renamer doit interpréter les dossiers ou fichiers déposés.',

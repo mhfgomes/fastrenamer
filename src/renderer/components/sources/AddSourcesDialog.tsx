@@ -161,6 +161,9 @@ export function AddSourcesDialog({ dialog }: { dialog: AddSourcesDialogState }) 
           <Button variant="ghost" onClick={() => dialog.onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
+          {dialog.canApply && (
+            <Button onClick={dialog.onApply}>{t('sources.add.apply')}</Button>
+          )}
           <Button onClick={dialog.onConfirm}>
             <FileInput className="h-3.5 w-3.5" />
             {dialog.isDrop ? t('sources.add.dropped_title') : sourceModeMeta[dialog.draftSourceMode].pickerLabel}

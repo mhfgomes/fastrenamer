@@ -179,6 +179,7 @@ export const en = {
   'editor.extension.remove': 'Remove',
 
   'sources.add.title': 'Add Sources',
+  'sources.add.apply': 'Apply changes',
   'sources.add.description': 'Choose what kind of items you want to rename before opening the file picker.',
   'sources.add.dropped_title': 'Use Dropped Items',
   'sources.add.dropped_description': 'Choose how Fast Renamer should interpret the dropped folders or files.',
