@@ -304,23 +304,23 @@ export function TopBar({
           <Badge dot tone="invalid">{t('preview.skipped_directories', { count: skippedDirectories })}</Badge>
         )}
 
-        {(mutating || previewLoading) && (
-          <span className="flex items-center gap-1.5 text-xs text-accent">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-            {mutation === 'execute'
-              ? t('topbar.busy.execute')
-              : mutation === 'undo'
-                ? t('topbar.busy.undo')
-                : t('topbar.busy.preview')}
-          </span>
-        )}
+        <span role="status" aria-live="polite" aria-atomic="true" className="flex items-center gap-1.5 text-xs text-accent">
+          {(mutating || previewLoading) && (
+            <>
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+              {mutation === 'execute'
+                ? t('topbar.busy.execute')
+                : mutation === 'undo'
+                  ? t('topbar.busy.undo')
+                  : t('topbar.busy.preview')}
+            </>
+          )}
+        </span>
 
-        {(error || previewError) && (
-          <span className="ml-auto flex flex-col items-end gap-0.5 text-xs text-conflict">
-            {error && <span>⚠ {error}</span>}
-            {previewError && <span>⚠ {previewError}</span>}
-          </span>
-        )}
+        <span role="alert" aria-atomic="true" className="ml-auto flex flex-col items-end gap-0.5 text-xs text-conflict">
+          {error && <span>⚠ {error}</span>}
+          {previewError && <span>⚠ {previewError}</span>}
+        </span>
       </div>
     </Panel>
   );
