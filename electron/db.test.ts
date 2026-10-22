@@ -221,12 +221,14 @@ describe('openAppDatabase failure handling', () => {
     return path.join(tempDir, 'test.sqlite');
   }
 
-  function directorySnapshot(databasePath: string) {
+  function directorySnapshot(databasePath: string, readSidecars = true) {
     const directory = path.dirname(databasePath);
     return fs
       .readdirSync(directory)
       .sort()
-      .map((name) => [name, fs.readFileSync(path.join(directory, name)).toString('base64')]);
+      .map((name) => [name, readSidecars || name === path.basename(databasePath)
+        ? fs.readFileSync(path.join(directory, name)).toString('base64')
+        : 'SQLite sidecar']);
   }
 
   it('keeps a locked database instead of replacing it, and opens it once the lock is released', () => {
@@ -243,7 +245,10 @@ describe('openAppDatabase failure handling', () => {
     const holder = new DatabaseSync(databasePath);
     holder.exec('BEGIN IMMEDIATE;');
     try {
-      const before = directorySnapshot(databasePath);
+      // Windows locks memory-mapped SQLite sidecars against ordinary file reads.
+      // Compare every filename and the primary database bytes while locked; the
+      // reopened preset/journal assertions below verify the logical contents.
+      const before = directorySnapshot(databasePath, false);
       const started = Date.now();
       let thrown: unknown;
       try {
@@ -255,7 +260,7 @@ describe('openAppDatabase failure handling', () => {
       expect(thrown).toBeInstanceOf(DatabaseOpenError);
       expect((thrown as Error).message).toMatch(/locked/);
       expect((thrown as Error).message).toMatch(/not modified/);
-      expect(directorySnapshot(databasePath)).toEqual(before);
+      expect(directorySnapshot(databasePath, false)).toEqual(before);
     } finally {
       holder.exec('ROLLBACK;');
       holder.close();

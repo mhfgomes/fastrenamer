@@ -153,8 +153,8 @@ describe('recoverInterruptedRenames', () => {
 describe('case-only renames during recovery', () => {
   const fingerprint: FileFingerprint = { dev: '1', ino: '7', size: '1', mtimeNs: '1', isDirectory: false };
   const entry: JournalEntry = {
-    sourcePath: '/files/Foo.txt',
-    targetPath: '/files/foo.txt',
+    sourcePath: path.join('/files', 'Foo.txt'),
+    targetPath: path.join('/files', 'foo.txt'),
     tempName: '.frtmp-000000000001',
     isDirectory: false,
     fingerprint,
@@ -165,18 +165,18 @@ describe('case-only renames during recovery', () => {
     const keys = new Set(names.map((name) => path.join('/files', name).toLowerCase()));
     return {
       fingerprint: async (candidate) => (keys.has(candidate.toLowerCase()) ? fingerprint : null),
-      listNames: async (directory) => (directory === '/files' ? names : null),
+      listNames: async (directory) => (directory === path.normalize('/files') ? names : null),
     };
   }
 
   it('treats an untouched case-only rename as still at its source name', async () => {
     const probed = await probeJournal('darwin', [entry], caseInsensitiveFs(['Foo.txt']));
-    expect(probed).toEqual({ states: ['source'], currentPaths: ['/files/Foo.txt'] });
+    expect(probed).toEqual({ states: ['source'], currentPaths: [path.join('/files', 'Foo.txt')] });
   });
 
   it('treats a finished case-only rename as at its target name', async () => {
     const probed = await probeJournal('darwin', [entry], caseInsensitiveFs(['foo.txt']));
-    expect(probed).toEqual({ states: ['target'], currentPaths: ['/files/foo.txt'] });
+    expect(probed).toEqual({ states: ['target'], currentPaths: [path.join('/files', 'foo.txt')] });
   });
 
   it('finds an item at its temporary name', async () => {

@@ -105,7 +105,7 @@ describe('runRenamePlan', () => {
       { journal },
     );
 
-    expect(await listTree(tempRoot)).toEqual(['new_parent', 'new_parent/keep', 'new_parent/keep/child.txt']);
+    expect(await listTree(tempRoot)).toEqual(['new_parent', path.join('new_parent', 'keep'), path.join('new_parent', 'keep', 'child.txt')]);
     expect(result.items.map((item) => item.targetPath)).toEqual([
       path.join(tempRoot, 'new_parent', 'keep', 'child.txt'),
       path.join(tempRoot, 'new_parent'),
