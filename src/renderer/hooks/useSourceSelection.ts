@@ -37,6 +37,7 @@ export function useSourceSelection({
   const [fileNamePattern, setFileNamePattern] = useState('');
   const [sortMode, setSortModeState] = useState<SortMode>(readStoredSortMode);
   const [addSourcesOpen, setAddSourcesOpen] = useState(false);
+  const [draftSources, setDraftSources] = useState<SourceSelection[]>([]);
   const [draftSourceMode, setDraftSourceMode] = useState<SourceMode>(sourceMode);
   const [draftFileNamePattern, setDraftFileNamePattern] = useState(fileNamePattern);
   const [draftSortMode, setDraftSortMode] = useState<SortMode>(sortMode);
@@ -104,11 +105,12 @@ export function useSourceSelection({
   const openAddSources = useCallback(() => {
     if (isLockedRef.current()) return;
     setPendingDroppedSources(null);
+    setDraftSources(sources);
     setDraftSourceMode(sourceMode);
     setDraftFileNamePattern(fileNamePattern);
     setDraftSortMode(sortMode);
     setAddSourcesOpen(true);
-  }, [fileNamePattern, sortMode, sourceMode]);
+  }, [fileNamePattern, sortMode, sourceMode, sources]);
 
   function onDialogOpenChange(open: boolean) {
     setAddSourcesOpen(open);
@@ -178,7 +180,7 @@ export function useSourceSelection({
     }
 
     if (isLockedRef.current()) return;
-    setSources((current) => sortSourceSelections(current.filter((source) => source.path !== sourcePath), sortMode));
+    setDraftSources((current) => current.filter((source) => source.path !== sourcePath));
   }
 
   async function handleDrop(event: DragEvent<HTMLElement>) {
@@ -228,8 +230,8 @@ export function useSourceSelection({
   }
 
   const dialogItems = useMemo(
-    () => sortSourceSelections(pendingDroppedSources ?? sources, draftSortMode),
-    [draftSortMode, pendingDroppedSources, sources],
+    () => sortSourceSelections(pendingDroppedSources ?? draftSources, draftSortMode),
+    [draftSortMode, pendingDroppedSources, draftSources],
   );
 
   return {
@@ -247,7 +249,7 @@ export function useSourceSelection({
       onOpenChange: onDialogOpenChange,
       isDrop: pendingDroppedSources !== null,
       items: dialogItems,
-      rootCount: pendingDroppedSources?.length ?? sources.length,
+      rootCount: pendingDroppedSources?.length ?? draftSources.length,
       availableModes: pendingDroppedSources ? getAvailableSourceModes(pendingDroppedSources) : SOURCE_MODE_OPTIONS,
       draftSourceMode,
       draftFileNamePattern,
@@ -257,6 +259,19 @@ export function useSourceSelection({
       onDraftSortModeChange: setDraftSortMode,
       onRemoveSource: removeSource,
       onConfirm: confirmDialog,
+      canApply: !pendingDroppedSources && sources.length > 0,
+      onApply: () => {
+        if (isLockedRef.current()) return;
+        const compatible = draftSources.filter(source =>
+          draftSourceMode === 'picked_files' ? !source.isDirectory : source.isDirectory,
+        );
+        setSources(sortSourceSelections(compatible, draftSortMode));
+        setSourceMode(draftSourceMode);
+        setFileNamePattern(draftFileNamePattern);
+        setSortModeState(draftSortMode);
+        onErrorRef.current(null);
+        setAddSourcesOpen(false);
+      },
     },
   };
 }

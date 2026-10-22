@@ -172,6 +172,7 @@ export const de: LocaleDict = {
   'editor.extension.remove': 'Entfernen',
 
   'sources.add.title': 'Quellen hinzufügen',
+  'sources.add.apply': 'Änderungen anwenden',
   'sources.add.description': 'Wählen Sie, welche Art von Elementen Sie umbenennen möchten, bevor die Dateiauswahl geöffnet wird.',
   'sources.add.dropped_title': 'Abgelegte Elemente verwenden',
   'sources.add.dropped_description': 'Wählen Sie, wie Fast Renamer die abgelegten Ordner oder Dateien interpretieren soll.',

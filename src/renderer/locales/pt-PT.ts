@@ -172,6 +172,7 @@ export const ptPT: LocaleDict = {
   'editor.extension.remove': 'Remover',
 
   'sources.add.title': 'Adicionar Origens',
+  'sources.add.apply': 'Aplicar alterações',
   'sources.add.description': 'Escolha que tipo de itens quer renomear antes de abrir o seletor de ficheiros.',
   'sources.add.dropped_title': 'Usar Itens Largados',
   'sources.add.dropped_description': 'Escolha como o Fast Renamer deve interpretar as pastas ou ficheiros largados.',

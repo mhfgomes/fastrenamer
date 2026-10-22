@@ -172,6 +172,7 @@ export const it: LocaleDict = {
   'editor.extension.remove': 'Rimuovi',
 
   'sources.add.title': 'Aggiungi sorgenti',
+  'sources.add.apply': 'Applica modifiche',
   'sources.add.description': 'Scegli quale tipo di elementi vuoi rinominare prima di aprire il selettore di file.',
   'sources.add.dropped_title': 'Usa elementi trascinati',
   'sources.add.dropped_description': 'Scegli come Fast Renamer deve interpretare le cartelle o i file trascinati.',
