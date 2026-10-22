@@ -5,7 +5,7 @@ import type { PreviewResult } from '@fastrenamer/rename-engine/types';
 import { STATUS_OPTIONS, type StatusFilter } from '../../app/defaults';
 import { useI18n } from '../../i18n';
 
-const ESTIMATED_ROW_HEIGHT = 41;
+const ESTIMATED_ROW_HEIGHT = 61;
 
 /**
  * Memoized: only re-renders when the preview, the filters or the (stable) toggle callback change.
@@ -125,8 +125,9 @@ export const PreviewPanel = memo(function PreviewPanel({
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     <Badge dot tone={row.status}>{t(`preview.status.${row.status}`)}</Badge>
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-xs break-all text-muted-foreground">
-                    {row.originalName}
+                  <td className="px-4 py-2.5 font-mono text-xs break-all text-muted-foreground" title={row.sourcePath}>
+                    <div>{row.originalName}</div>
+                    <div className="mt-1 text-[10px] text-muted-foreground">{row.sourcePath}</div>
                   </td>
                   <td
                     className={cn(
@@ -136,8 +137,10 @@ export const PreviewPanel = memo(function PreviewPanel({
                       row.status === 'invalid' && 'text-invalid',
                       row.status === 'unchanged' && 'text-muted-foreground',
                     )}
+                    title={row.nextPath}
                   >
-                    {row.proposedName}
+                    <div>{row.proposedName}</div>
+                    <div className="mt-1 text-[10px] font-normal text-muted-foreground">{row.nextPath}</div>
                   </td>
                   <td
                     className="px-4 py-2.5 text-xs text-muted-foreground truncate"
