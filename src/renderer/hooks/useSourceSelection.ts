@@ -41,11 +41,15 @@ export function useSourceSelection({
   const [draftFileNamePattern, setDraftFileNamePattern] = useState(fileNamePattern);
   const [draftSortMode, setDraftSortMode] = useState<SortMode>(sortMode);
   const [pendingSourcePick, setPendingSourcePick] = useState<{
+    generation: number;
     mode: SourceMode;
     fileNamePattern: string;
     sortMode: SortMode;
   } | null>(null);
   const [pendingDroppedSources, setPendingDroppedSources] = useState<SourceSelection[] | null>(null);
+
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current++; }, []);
 
   const isLockedRef = useRef(isLocked);
   isLockedRef.current = isLocked;
@@ -70,7 +74,7 @@ export function useSourceSelection({
       try {
         const picked = await window.advancedRenamer.pickSources({ mode: nextPick.mode });
         // Cancelled (or nothing usable picked): keep the current sources, mode, filter and sort.
-        if (picked.length === 0 || isLockedRef.current()) {
+        if (nextPick.generation !== generation.current || picked.length === 0 || isLockedRef.current()) {
           return;
         }
         onErrorRef.current(null);
@@ -79,30 +83,42 @@ export function useSourceSelection({
         setSortModeState(nextPick.sortMode);
         setSources(sortSourceSelections(picked, nextPick.sortMode));
       } catch (error) {
-        onErrorRef.current(getErrorMessage(error, t('error.source_picker')));
+        if (nextPick.generation === generation.current && !isLockedRef.current()) {
+          onErrorRef.current(getErrorMessage(error, t('error.source_picker')));
+        }
       }
     })();
   }, [addSourcesOpen, pendingSourcePick, t]);
 
   const setSortMode = useCallback((mode: SortMode) => {
-    if (!isLockedRef.current()) setSortModeState(mode);
+    if (!isLockedRef.current()) {
+      generation.current++;
+      setSortModeState(mode);
+    }
   }, []);
 
   const clearSources = useCallback(() => {
     if (isLockedRef.current()) return;
+    generation.current++;
     setSources([]);
+    setPendingDroppedSources(null);
+    setAddSourcesOpen(false);
     setPendingSourcePick(null);
     onErrorRef.current(null);
   }, []);
 
   /** Clears sources after a successful rename (bypasses the lock, which is still held then). */
   const resetSources = useCallback(() => {
+    generation.current++;
     setSources([]);
+    setPendingDroppedSources(null);
+    setAddSourcesOpen(false);
     setPendingSourcePick(null);
   }, []);
 
   const openAddSources = useCallback(() => {
     if (isLockedRef.current()) return;
+    generation.current++;
     setPendingDroppedSources(null);
     setDraftSourceMode(sourceMode);
     setDraftFileNamePattern(fileNamePattern);
@@ -111,6 +127,8 @@ export function useSourceSelection({
   }, [fileNamePattern, sortMode, sourceMode]);
 
   function onDialogOpenChange(open: boolean) {
+    generation.current++;
+    setPendingSourcePick(null);
     setAddSourcesOpen(open);
     if (!open) {
       setPendingDroppedSources(null);
@@ -126,6 +144,7 @@ export function useSourceSelection({
 
   function confirmDialog() {
     if (isLockedRef.current()) return;
+    generation.current++;
     if (pendingDroppedSources) {
       const nextSources =
         draftSourceMode === 'picked_files'
@@ -148,6 +167,7 @@ export function useSourceSelection({
     }
 
     setPendingSourcePick({
+      generation: generation.current,
       mode: draftSourceMode,
       fileNamePattern: draftFileNamePattern,
       sortMode: draftSortMode,
@@ -156,6 +176,8 @@ export function useSourceSelection({
   }
 
   function removeSource(sourcePath: string) {
+    if (isLockedRef.current()) return;
+    generation.current++;
     if (pendingDroppedSources) {
       const nextSources = sortSourceSelections(
         pendingDroppedSources.filter((source) => source.path !== sourcePath),
@@ -188,6 +210,8 @@ export function useSourceSelection({
       return;
     }
 
+    const dropGeneration = ++generation.current;
+    setPendingSourcePick(null);
     const droppedPaths = window.advancedRenamer.getDroppedPaths(Array.from(event.dataTransfer.files));
 
     if (droppedPaths.length === 0) {
@@ -198,7 +222,7 @@ export function useSourceSelection({
     try {
       onErrorRef.current(null);
       const resolved = await window.advancedRenamer.resolveSources(droppedPaths);
-      if (isLockedRef.current()) return;
+      if (dropGeneration !== generation.current || isLockedRef.current()) return;
       const hasDirectories = resolved.some((source) => source.isDirectory);
 
       if (!hasDirectories) {
@@ -223,7 +247,9 @@ export function useSourceSelection({
       setDraftSortMode(sortMode);
       setAddSourcesOpen(true);
     } catch (error) {
-      onErrorRef.current(getErrorMessage(error, t('error.read_dropped')));
+      if (dropGeneration === generation.current && !isLockedRef.current()) {
+        onErrorRef.current(getErrorMessage(error, t('error.read_dropped')));
+      }
     }
   }
 
