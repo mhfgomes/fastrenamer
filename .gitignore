@@ -30,3 +30,6 @@ dist-renderer
 *.njsproj
 *.sln
 *.sw?
+
+# Locally compiled Node-API addon
+native/no-replace/build/
