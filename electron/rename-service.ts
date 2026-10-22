@@ -522,12 +522,20 @@ async function buildUndoPreflightIssues(
   otherUndoableItems: Array<RenameBatchRecord & { batchId: number }>,
 ) {
   const issues: UndoPreflightIssue[] = [];
-  const currentKeys = new Set(batchItems.map((item) => normalizePathKey(item.targetPath, platform)));
+  const pathApi = platform === 'win32' ? path.win32 : path.posix;
+  const pathKey = (pathname: string) => {
+    const normalized = pathApi.normalize(pathname);
+    const root = pathApi.parse(normalized).root;
+    let end = normalized.length;
+    while (end > root.length && normalized[end - 1] === pathApi.sep) end -= 1;
+    return normalizePathKey(normalized.slice(0, end), platform);
+  };
+  const currentKeys = new Set(batchItems.map((item) => pathKey(item.targetPath)));
   const overlappingBatchIds = new Set<number>();
   const otherPathOwners = new Map<string, Set<number>>();
 
   for (const item of otherUndoableItems.filter((candidate) => candidate.batchId > batchId)) {
-    for (const key of [normalizePathKey(item.sourcePath, platform), normalizePathKey(item.targetPath, platform)]) {
+    for (const key of [pathKey(item.sourcePath), pathKey(item.targetPath)]) {
       if (!otherPathOwners.has(key)) {
         otherPathOwners.set(key, new Set());
       }
@@ -546,15 +554,28 @@ async function buildUndoPreflightIssues(
       });
     }
 
-    const restoreKey = normalizePathKey(item.sourcePath, platform);
+    const restoreKey = pathKey(item.sourcePath);
     if (!currentKeys.has(restoreKey) && (await lstatFingerprint(item.sourcePath))) {
       issues.push({ code: 'occupied', message: `Restore target is occupied: ${item.sourcePath}` });
     }
 
     otherPathOwners
-      .get(normalizePathKey(item.targetPath, platform))
+      .get(pathKey(item.targetPath))
       ?.forEach((ownerBatchId) => overlappingBatchIds.add(ownerBatchId));
     otherPathOwners.get(restoreKey)?.forEach((ownerBatchId) => overlappingBatchIds.add(ownerBatchId));
+
+    if (item.isDirectory) {
+      // Moving a directory also moves every descendant. Newer history must be undone first
+      // even when only a child's old path (rather than its current path) lies inside it.
+      for (const directoryKey of [pathKey(item.targetPath), restoreKey]) {
+        const prefix = directoryKey.endsWith(pathApi.sep) ? directoryKey : directoryKey + pathApi.sep;
+        for (const [otherKey, owners] of otherPathOwners) {
+          if (otherKey.startsWith(prefix)) {
+            owners.forEach((ownerBatchId) => overlappingBatchIds.add(ownerBatchId));
+          }
+        }
+      }
+    }
   }
 
   if (overlappingBatchIds.size > 0) {

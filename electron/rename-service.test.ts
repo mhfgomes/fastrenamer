@@ -468,3 +468,68 @@ describe('createLatestPreviewRunner', () => {
     await expect(second).resolves.toMatchObject({ summary: { total: 1 } });
   });
 });
+
+describe('directory undo dependencies', () => {
+  it('blocks a directory undo until a newer child rename is undone, then restores both', async () => {
+    const a = path.join(tempRoot, 'a');
+    const b = path.join(tempRoot, 'b');
+    const x = path.join(b, 'x');
+    const y = path.join(b, 'y');
+    await fs.mkdir(a);
+    await fs.writeFile(path.join(a, 'x'), 'child');
+    await fs.rename(a, b);
+    await fs.rename(x, y);
+    const directory = { sourcePath: a, targetPath: b, isDirectory: true };
+    const child = { sourcePath: x, targetPath: y, isDirectory: false };
+    const store = memoryStore({ 1: [directory], 2: [child] }, [
+      { ...directory, batchId: 1 }, { ...child, batchId: 2 },
+    ]);
+
+    const history = await listHistoryWithUndoStatus(hostPlatform, store);
+    expect(history.map(({ id, undoState }) => ({ id, undoState }))).toEqual([
+      { id: 2, undoState: 'ready' }, { id: 1, undoState: 'overlap' },
+    ]);
+    expect(await undoRenameBatch(1, hostPlatform, store)).toMatchObject({ success: false, restoredCount: 0 });
+    expect(await fs.readFile(y, 'utf8')).toBe('child');
+    expect(await undoRenameBatch(2, hostPlatform, store)).toMatchObject({ success: true });
+    expect((await listHistoryWithUndoStatus(hostPlatform, store)).find(({ id }) => id === 1)?.canUndo).toBe(true);
+    expect(await undoRenameBatch(1, hostPlatform, store)).toMatchObject({ success: true });
+    expect(await fs.readFile(path.join(a, 'x'), 'utf8')).toBe('child');
+  });
+
+  it.each([
+    ['linux', '/root/b/x', '/else/y', true],
+    ['linux', '/else/x', '/root/b/nested/y', true],
+    ['linux', '/root/a/x', '/else/y', true],
+    ['linux', '/else/x', '/root/a/y', true],
+    ['linux', '/root/b-sibling/x', '/root/bb/y', false],
+    ['linux', '/root/c/x', '/root/c/y', false],
+    ['linux', '/root/B/x', '/else/y', false],
+    ['darwin', '/ROOT/B/x', '/else/y', true],
+    ['win32', 'C:/ROOT/B/./nested/x', 'D:/else/y', true],
+    ['win32', 'D:\\else\\x', 'c:\\root\\b\\nested\\y', true],
+    ['win32', 'C:/root/b-sibling/x', 'C:/root/bb/y', false],
+  ] as const)('uses separator-aware %s paths: %s -> %s', async (platform, sourcePath, targetPath, overlap) => {
+    const directory = {
+      sourcePath: platform === 'win32' ? 'C:\\root\\a\\' : '/root/a/',
+      targetPath: platform === 'win32' ? 'C:\\root\\b\\' : '/root/b/',
+      isDirectory: true,
+    };
+    const store = memoryStore({ 1: [directory] }, [{ batchId: 2, sourcePath, targetPath, isDirectory: false }]);
+    const [entry] = await listHistoryWithUndoStatus(platform, store);
+    expect(entry.undoState).toBe(overlap ? 'overlap' : 'missing');
+  });
+
+  it('ignores older descendants and does not treat file path prefixes as directories', async () => {
+    const current = path.join(tempRoot, 'b');
+    await fs.writeFile(current, 'file');
+    const file = { sourcePath: path.join(tempRoot, 'a'), targetPath: current, isDirectory: false };
+    const descendant = { sourcePath: path.join(current, 'x'), targetPath: path.join(current, 'y'), isDirectory: false };
+    for (const batchId of [1, 3]) {
+      const store = memoryStore({ 2: [file] }, [{ ...descendant, batchId }]);
+      expect((await listHistoryWithUndoStatus(hostPlatform, store))[0].undoState).toBe('ready');
+    }
+    const store = memoryStore({ 2: [{ ...file, isDirectory: true }] }, [{ ...descendant, batchId: 1 }]);
+    expect((await listHistoryWithUndoStatus(hostPlatform, store))[0].undoState).toBe('ready');
+  });
+});
