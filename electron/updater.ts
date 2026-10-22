@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import electronUpdater from 'electron-updater';
-import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater';
+import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo, UpdateCheckResult } from 'electron-updater';
 import type { UpdateChannel, UpdateManualReason, UpdateState } from '../src/shared/contracts';
 import {
   applyUpdateChannelSettings,
@@ -91,6 +91,12 @@ export class AppUpdaterManager {
   private recheckQueued = false;
   private manualDownloadOnly = false;
   private manualReason?: UpdateManualReason;
+  private channelGeneration = 0;
+  private activeGeneration: number | null = null;
+  private downloadTask: Promise<void> | null = null;
+  private downloadToken?: UpdateCheckResult['cancellationToken'];
+  private downloadVersion?: string;
+  private installerGeneration: number | null = null;
 
   constructor(private readonly getWindow: () => BrowserWindow | null) {}
 
@@ -139,10 +145,16 @@ export class AppUpdaterManager {
       });
     }
 
-    autoUpdater.autoDownload = !this.manualDownloadOnly;
-    autoUpdater.autoInstallOnAppQuit = true;
+    // Own downloads and quit installation so a retired channel can never leave
+    // an installer queued inside electron-updater (including Squirrel.Mac).
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+    app.on('before-quit', (event) => {
+      if (this.quitAndInstall()) event.preventDefault();
+    });
 
     autoUpdater.on('checking-for-update', () => {
+      if (!this.isCurrentGeneration()) return;
       this.setState({
         ...toBaseState(undefined, this.state, this.channel),
         status: 'checking',
@@ -152,6 +164,7 @@ export class AppUpdaterManager {
     });
 
     autoUpdater.on('update-available', (info) => {
+      if (!this.isCurrentGeneration()) return;
       const downloadUrl = getReleaseDownloadUrl(this.channel, info.version);
       this.setState({
         ...toBaseState(info, this.state, this.channel),
@@ -164,6 +177,7 @@ export class AppUpdaterManager {
     });
 
     autoUpdater.on('update-not-available', (info) => {
+      if (!this.isCurrentGeneration()) return;
       this.setState({
         ...toBaseState(info, this.state, this.channel),
         status: 'up-to-date',
@@ -175,6 +189,7 @@ export class AppUpdaterManager {
     });
 
     autoUpdater.on('download-progress', (progress) => {
+      if (!this.isCurrentGeneration()) return;
       this.setState({
         ...toBaseState(undefined, this.state, this.channel),
         status: 'downloading',
@@ -185,6 +200,8 @@ export class AppUpdaterManager {
     });
 
     autoUpdater.on('update-downloaded', (info) => {
+      if (!this.isCurrentGeneration() || info.version !== this.downloadVersion) return;
+      this.installerGeneration = this.channelGeneration;
       this.setState({
         ...toBaseState(info, this.state, this.channel),
         status: 'downloaded',
@@ -194,6 +211,7 @@ export class AppUpdaterManager {
     });
 
     autoUpdater.on('error', (error) => {
+      if (!this.isCurrentGeneration()) return;
       this.setState({
         ...toBaseState(undefined, this.state, this.channel),
         status: 'error',
@@ -220,8 +238,12 @@ export class AppUpdaterManager {
   }
 
   async setChannel(channel: UpdateChannel) {
-    this.channel = channel;
+    if (channel === this.channel) return this.state;
     saveUpdateChannel(channel);
+    this.channel = channel;
+    this.channelGeneration += 1;
+    this.installerGeneration = null;
+    this.downloadToken?.cancel();
 
     if (!app.isPackaged) {
       this.setState({
@@ -233,18 +255,14 @@ export class AppUpdaterManager {
 
     applyUpdateChannelSettings(autoUpdater, channel);
 
-    if (this.manualDownloadOnly) {
-      this.setState({
-        ...this.state,
-        channel,
-        downloadUrl: getReleaseDownloadUrl(channel),
-      });
-    } else {
-      this.setState({
-        ...this.state,
-        channel,
-      });
-    }
+    this.setState({
+      status: 'idle',
+      currentVersion: app.getVersion(),
+      channel,
+      manualDownloadOnly: this.manualDownloadOnly,
+      reason: this.manualReason,
+      downloadUrl: this.manualDownloadOnly ? getReleaseDownloadUrl(channel) : undefined,
+    });
 
     // A check that is already running was started against the previous
     // channel; queue another one so the new channel is checked once it ends.
@@ -277,26 +295,54 @@ export class AppUpdaterManager {
     } while (this.recheckQueued);
   }
 
+  private isCurrentGeneration() {
+    return this.activeGeneration === this.channelGeneration;
+  }
+
   private async runCheck() {
+    // electron-updater reuses an existing download promise. Let a cancelled
+    // download settle before a new channel can start another download.
+    if (this.downloadTask) await this.downloadTask;
+    const generation = this.channelGeneration;
+    this.activeGeneration = generation;
     try {
-      await autoUpdater.checkForUpdates();
+      const result = await autoUpdater.checkForUpdates();
+      if (generation !== this.channelGeneration || !result?.isUpdateAvailable || this.manualDownloadOnly) return;
+      this.downloadToken = result.cancellationToken;
+      this.downloadVersion = result.updateInfo.version;
+      const task = autoUpdater.downloadUpdate(this.downloadToken)
+        .then(() => undefined)
+        .catch((error: unknown) => {
+          if (generation !== this.channelGeneration) return;
+          this.reportError(error);
+        })
+        .finally(() => {
+          if (this.downloadTask === task) {
+            this.downloadTask = null;
+            this.downloadToken = undefined;
+            this.downloadVersion = undefined;
+          }
+        });
+      this.downloadTask = task;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to check for updates.';
-      this.setState({
-        ...toBaseState(undefined, this.state, this.channel),
-        status: 'error',
-        checkedAt: new Date().toISOString(),
-        manualDownloadOnly: this.manualDownloadOnly,
-        downloadUrl: this.manualDownloadOnly
-          ? getReleaseDownloadUrl(this.channel)
-          : this.state.downloadUrl,
-        message,
-      });
+      if (generation === this.channelGeneration) this.reportError(error);
     }
   }
 
+  private reportError(error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to check for updates.';
+    this.setState({
+      ...toBaseState(undefined, this.state, this.channel),
+      status: 'error',
+      checkedAt: new Date().toISOString(),
+      manualDownloadOnly: this.manualDownloadOnly,
+      downloadUrl: this.manualDownloadOnly ? getReleaseDownloadUrl(this.channel) : this.state.downloadUrl,
+      message,
+    });
+  }
+
   quitAndInstall() {
-    if (this.state.status !== 'downloaded') {
+    if (this.state.status !== 'downloaded' || this.installerGeneration !== this.channelGeneration) {
       return false;
     }
 
