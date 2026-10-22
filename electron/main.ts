@@ -444,41 +444,59 @@ function openDatabaseOrQuit() {
   }
 }
 
-app.whenReady().then(async () => {
-  Menu.setApplicationMenu(null);
-  appUrlPolicy = createAppUrlPolicy({
-    devServerUrl: process.env.VITE_DEV_SERVER_URL,
-    indexPath: getRendererIndexPath(),
-  });
-  applyDevelopmentContentSecurityPolicy();
-  const openedDatabase = openDatabaseOrQuit();
-  if (!openedDatabase) {
-    return;
-  }
-  database = openedDatabase;
-  startupNotices.push(...(await recoverInterruptedRenames(getPlatform(), database)));
-  updater = new AppUpdaterManager(() => mainWindow);
-  registerIpc();
-  createWindow();
-  updater.initialize();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+// Recovery must never inspect another live process's rename journal.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  let startupComplete = false;
+  app.on('second-instance', () => {
+    // During startup the initial window will be created after recovery completes.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    } else if (startupComplete) {
       createWindow();
     }
   });
-});
 
-app.on('web-contents-created', (_event, contents) => {
-  hardenWebContents(contents);
-});
+  app.whenReady().then(async () => {
+    Menu.setApplicationMenu(null);
+    appUrlPolicy = createAppUrlPolicy({
+      devServerUrl: process.env.VITE_DEV_SERVER_URL,
+      indexPath: getRendererIndexPath(),
+    });
+    applyDevelopmentContentSecurityPolicy();
+    const openedDatabase = openDatabaseOrQuit();
+    if (!openedDatabase) {
+      return;
+    }
+    database = openedDatabase;
+    startupNotices.push(...(await recoverInterruptedRenames(getPlatform(), database)));
+    updater = new AppUpdaterManager(() => mainWindow);
+    registerIpc();
+    createWindow();
+    updater.initialize();
+    startupComplete = true;
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
 
-app.on('before-quit', () => {
-  updater?.dispose();
-});
+  app.on('web-contents-created', (_event, contents) => {
+    hardenWebContents(contents);
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+
+  app.on('before-quit', () => {
+    updater?.dispose();
+  });
+}
