@@ -19,7 +19,9 @@ Electron Builder copies the binary outside app.asar using extraResources; the
 loader uses Electron's resourcesPath only for packaged apps. The beforePack hook
 rejects cross-OS/architecture packaging. Build on each target host; universal
 and cross-architecture packages require a separate binary selection pipeline.
-The single metadata syscall is synchronous; no subprocess is involved in renames.
+The single metadata syscall runs in a Node-API worker so slow filesystems do not
+block the main event loop. Awaited completion preserves rename/rollback ordering;
+no subprocess is involved in renames.
 
 References:
 - https://man7.org/linux/man-pages/man2/rename.2.html
