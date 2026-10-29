@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.1
+
+Changes since 0.2.0.
+
+### Renaming
+
+- Add quick-insert tokens to Find / Replace: numeric and letter sequences, original and current names, parent folder, date, and time.
+- Upgrade `@fastrenamer/rename-engine` to 0.2.1 for replacement templates and rename-planning fixes.
+- Use atomic no-replace filesystem operations to prevent overwriting entries created during a rename.
+- Block directory undo when newer history contains descendant changes.
+
+### Interface and reliability
+
+- Show source and destination paths in previews, and announce errors and progress for assistive technology.
+- Keep source removals cancellable and discard stale asynchronous source selections.
+- Retire update downloads when switching channels, and require single-instance ownership before database recovery.
+- Update dependencies and CI runtimes; make fingerprint tests independent of inode reuse.
+
+[Full comparison](https://github.com/mhfgomes/fastrenamer/compare/v0.2.0...v0.2.1)
+
 ## 0.2.0
 
 Changes since 0.1.1.
