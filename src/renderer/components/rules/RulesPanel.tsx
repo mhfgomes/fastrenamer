@@ -324,6 +324,35 @@ export function RuleCard({
   );
 }
 
+function TemplateQuickInsert({ onInsert }: { onInsert: (token: string) => void }) {
+  const { t } = useI18n();
+  const tokens = useMemo(() => getNewNameTokens(t), [t]);
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {t('editor.new_name.quick_insert')}
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {tokens.map((token) => (
+          <button
+            key={token.value}
+            type="button"
+            onClick={() => onInsert(token.value)}
+            className={cn(
+              'rounded-lg border border-border bg-surface px-3 py-2 text-left transition-colors',
+              'hover:border-accent/40 hover:bg-surface-elevated',
+            )}
+          >
+            <div className="text-xs font-semibold text-foreground">{token.label}</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">{token.detail}</div>
+            <code className="mt-1 block text-[11px] text-accent">{token.value}</code>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function NewNameRuleEditor({
   rule,
   update,
@@ -332,7 +361,6 @@ export function NewNameRuleEditor({
   update: RuleUpdater<RuleOf<'new_name'>>;
 }) {
   const { t } = useI18n();
-  const tokens = useMemo(() => getNewNameTokens(t), [t]);
   const starters = useMemo(() => getNewNameStarters(t), [t]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -377,28 +405,7 @@ export function NewNameRuleEditor({
         label={t('editor.new_name.reverse_sequence')}
       />
 
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t('editor.new_name.quick_insert')}
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {tokens.map((token) => (
-            <button
-              key={token.value}
-              type="button"
-              onClick={() => insertToken(token.value)}
-              className={cn(
-                'rounded-lg border border-border bg-surface px-3 py-2 text-left transition-colors',
-                'hover:border-accent/40 hover:bg-surface-elevated',
-              )}
-            >
-              <div className="text-xs font-semibold text-foreground">{token.label}</div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">{token.detail}</div>
-              <code className="mt-1 block text-[11px] text-accent">{token.value}</code>
-            </button>
-          ))}
-        </div>
-      </div>
+      <TemplateQuickInsert onInsert={insertToken} />
 
       <div className="space-y-2">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -538,6 +545,65 @@ export function CustomRuleEditor({
   );
 }
 
+export function FindReplaceRuleEditor({ rule, update }: {
+  rule: RuleOf<'find_replace'>;
+  update: RuleUpdater<RuleOf<'find_replace'>>;
+}) {
+  const { t } = useI18n();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  function insertToken(token: string) {
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? rule.replace.length;
+    const end = input?.selectionEnd ?? rule.replace.length;
+    update((current) => ({
+      replace: `${current.replace.slice(0, start)}${token}${current.replace.slice(end)}`,
+    }));
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(start + token.length, start + token.length);
+    });
+  }
+
+  return (
+    <div className="space-y-2.5">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Input
+          value={rule.find}
+          onChange={(e) => update({ find: e.target.value })}
+          placeholder={t('editor.find.placeholder')}
+          aria-label={t('editor.find.placeholder')}
+        />
+        <Input
+          ref={inputRef}
+          value={rule.replace}
+          onChange={(e) => update({ replace: e.target.value })}
+          placeholder={t('editor.replace.placeholder')}
+          aria-label={t('editor.replace.placeholder')}
+        />
+      </div>
+      <div className="flex flex-wrap gap-4">
+        <Checkbox
+          checked={rule.matchCase}
+          onCheckedChange={(checked) => update({ matchCase: checked === true })}
+          label={t('editor.match_case')}
+        />
+        <Checkbox
+          checked={rule.useRegex}
+          onCheckedChange={(checked) => update({ useRegex: checked === true })}
+          label={t('editor.regex')}
+        />
+        <Checkbox
+          checked={rule.replaceAll}
+          onCheckedChange={(checked) => update({ replaceAll: checked === true })}
+          label={t('editor.replace_all')}
+        />
+      </div>
+      <TemplateQuickInsert onInsert={insertToken} />
+    </div>
+  );
+}
+
 export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpdater<RenameRule> }) {
   const { t } = useI18n();
   switch (rule.type) {
@@ -548,41 +614,7 @@ export function RuleEditor({ rule, update }: { rule: RenameRule; update: RuleUpd
       return <CustomRuleEditor rule={rule} update={update as RuleUpdater<RuleOf<'custom_rule'>>} />;
 
     case 'find_replace':
-      return (
-        <div className="space-y-2.5">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input
-              value={rule.find}
-              onChange={(e) => update({ find: e.target.value })}
-              placeholder={t('editor.find.placeholder')}
-              aria-label={t('editor.find.placeholder')}
-            />
-            <Input
-              value={rule.replace}
-              onChange={(e) => update({ replace: e.target.value })}
-              placeholder={t('editor.replace.placeholder')}
-              aria-label={t('editor.replace.placeholder')}
-            />
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <Checkbox
-              checked={rule.matchCase}
-              onCheckedChange={(checked) => update({ matchCase: checked === true })}
-              label={t('editor.match_case')}
-            />
-            <Checkbox
-              checked={rule.useRegex}
-              onCheckedChange={(checked) => update({ useRegex: checked === true })}
-              label={t('editor.regex')}
-            />
-            <Checkbox
-              checked={rule.replaceAll}
-              onCheckedChange={(checked) => update({ replaceAll: checked === true })}
-              label={t('editor.replace_all')}
-            />
-          </div>
-        </div>
-      );
+      return <FindReplaceRuleEditor rule={rule} update={update as RuleUpdater<RuleOf<'find_replace'>>} />;
 
     case 'prefix_suffix':
       return (
