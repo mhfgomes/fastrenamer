@@ -379,9 +379,8 @@ describe('runRenamePlan', () => {
     const first = await runRenamePlan('linux', [
       { sourcePath: file, targetPath: path.join(tempRoot, 'b.txt'), isDirectory: false },
     ]);
-    // Replace the renamed file with a different one.
-    await fs.rm(path.join(tempRoot, 'b.txt'));
-    await fs.writeFile(path.join(tempRoot, 'other.txt'), 'other');
+    // Keep the original inode alive so the replacement cannot reuse it on Linux.
+    await fs.rename(path.join(tempRoot, 'b.txt'), path.join(tempRoot, 'original.txt'));
     await fs.writeFile(path.join(tempRoot, 'b.txt'), 'imposter');
 
     await expect(
