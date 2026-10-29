@@ -25,3 +25,21 @@ it('expands replacement tokens after filtering, sorting and earlier rules, using
   ]);
   expect(planPreview(input)).toEqual(preview);
 });
+
+for (const useRegex of [false, true]) {
+  it(`expands Find and Replace sequences (regex: ${useRegex})`, () => {
+    const preview = planPreview({
+      items: ['E26.jpg', 'E25.jpg'].map(name => ({
+        sourcePath: `/pictures/${name}`, name, parentPath: '/pictures', isDirectory: false,
+      })),
+      rules: [{
+        id: 'renumber', type: 'find_replace', enabled: true,
+        find: 'E{seq_num:25}', replace: 'E{seq_num:01}',
+        matchCase: false, useRegex, replaceAll: true,
+      }],
+      platform: 'linux', sortMode: 'natural_path', fileNamePattern: '', now: 0,
+    });
+    expect(preview.summary.blocked).toBe(false);
+    expect(preview.rows.map(row => row.proposedName)).toEqual(['E01.jpg', 'E02.jpg']);
+  });
+}
