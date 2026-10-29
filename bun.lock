@@ -9,7 +9,7 @@
       },
       "devDependencies": {
         "@electron/fuses": "^2.1.3",
-        "@fastrenamer/rename-engine": "^0.2.1",
+        "@fastrenamer/rename-engine": "^0.2.2",
         "@fontsource-variable/dm-sans": "^5.3.0",
         "@fontsource/jetbrains-mono": "^5.3.0",
         "@radix-ui/react-checkbox": "^1.4.1",
@@ -91,7 +91,7 @@
 
     "@exodus/bytes": ["@exodus/bytes@1.16.0", "", { "peerDependencies": { "@noble/hashes": "^1.8.0 || ^2.0.0" }, "optionalPeers": ["@noble/hashes"] }, "sha512-IcpW84uEn3N7ETtNZMlxKhfl6Pec8rUNGOTBtWbK1FKhJxIFAptZyVrvVRVBimAJxJCgc3PxepxkdWWG4DVzfA=="],
 
-    "@fastrenamer/rename-engine": ["@fastrenamer/rename-engine@0.2.1", "", {}, "sha512-W8Xr2dHTshcsrm98QR8oedHZgU8E2SVzMdebcP+A49gJAKNqLD6UtjbQQitgXVeQA7vPRqMzfzCFQdOifMYT+w=="],
+    "@fastrenamer/rename-engine": ["@fastrenamer/rename-engine@0.2.2", "", {}, "sha512-y3bl2l13SK6uaLdQDAq7h6F3TEU3f+0cdYawosz2KcKxuJ3oZcJTFsJChweAwO0w3OBhvn8dZIdOlINmvq5QHw=="],
 
     "@floating-ui/core": ["@floating-ui/core@1.8.0", "", { "dependencies": { "@floating-ui/utils": "^0.2.12" } }, "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ=="],
 

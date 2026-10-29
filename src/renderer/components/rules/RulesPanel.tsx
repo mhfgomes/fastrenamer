@@ -551,13 +551,16 @@ export function FindReplaceRuleEditor({ rule, update }: {
 }) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const findRef = useRef<HTMLInputElement | null>(null);
+  const activeField = useRef<'find' | 'replace'>('replace');
 
   function insertToken(token: string) {
-    const input = inputRef.current;
-    const start = input?.selectionStart ?? rule.replace.length;
-    const end = input?.selectionEnd ?? rule.replace.length;
+    const field = activeField.current;
+    const input = field === 'find' ? findRef.current : inputRef.current;
+    const start = input?.selectionStart ?? rule[field].length;
+    const end = input?.selectionEnd ?? rule[field].length;
     update((current) => ({
-      replace: `${current.replace.slice(0, start)}${token}${current.replace.slice(end)}`,
+      [field]: `${current[field].slice(0, start)}${token}${current[field].slice(end)}`,
     }));
     requestAnimationFrame(() => {
       input?.focus();
@@ -569,6 +572,8 @@ export function FindReplaceRuleEditor({ rule, update }: {
     <div className="space-y-2.5">
       <div className="grid gap-2 sm:grid-cols-2">
         <Input
+          ref={findRef}
+          onFocus={() => { activeField.current = 'find'; }}
           value={rule.find}
           onChange={(e) => update({ find: e.target.value })}
           placeholder={t('editor.find.placeholder')}
@@ -576,6 +581,7 @@ export function FindReplaceRuleEditor({ rule, update }: {
         />
         <Input
           ref={inputRef}
+          onFocus={() => { activeField.current = 'replace'; }}
           value={rule.replace}
           onChange={(e) => update({ replace: e.target.value })}
           placeholder={t('editor.replace.placeholder')}

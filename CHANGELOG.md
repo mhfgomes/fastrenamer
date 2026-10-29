@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Support template tokens in both Find and Replace using `@fastrenamer/rename-engine` 0.2.2.
+- Insert Quick Insert tokens into the last focused Find or Replace field.
+
 ## 0.2.1
 
 Changes since 0.2.0.

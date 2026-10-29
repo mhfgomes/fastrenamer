@@ -30,3 +30,25 @@ it('inserts quick-insert tokens into the replacement selection and restores the 
   expect(screen.getByDisplayValue('photo')).toBeTruthy();
   expect(screen.getAllByRole('button')).toHaveLength(8);
 });
+
+it('inserts tokens into the focused Find field and can switch back to Replace', () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(0); return 1; });
+  function Editor() {
+    const [rule, setRule] = useState<Extract<RenameRule, { type: 'find_replace' }>>({
+      id: 'test', type: 'find_replace', enabled: true, find: 'E25', replace: 'E01',
+      matchCase: false, useRegex: false, replaceAll: true,
+    });
+    return createElement(FindReplaceRuleEditor, { rule, update: (patch) => setRule(current => ({ ...current, ...(typeof patch === 'function' ? patch(current) : patch) })) });
+  }
+  render(createElement(I18nProvider, null, createElement(Editor)));
+  const find = screen.getByDisplayValue('E25') as HTMLInputElement;
+  fireEvent.focus(find);
+  find.setSelectionRange(1, 3);
+  fireEvent.click(screen.getByRole('button', { name: /Sequence 0001/ }));
+  expect(find.value).toBe('E{seq_num:0001}');
+  const replacement = screen.getByDisplayValue('E01') as HTMLInputElement;
+  fireEvent.focus(replacement);
+  replacement.setSelectionRange(1, 3);
+  fireEvent.click(screen.getByRole('button', { name: /Sequence 0001/ }));
+  expect(replacement.value).toBe('E{seq_num:0001}');
+});

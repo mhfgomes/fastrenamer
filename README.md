@@ -22,6 +22,7 @@ Fast Renamer focuses on safe, desktop-style bulk renaming with a live preview an
 - Saved presets and built-in sample presets
 - Rename history with undo safety checks
 - Template-based `New Name` rule with clickable tokens
+- Tokens in both Find and Replace fields: `E{seq_num:25}` to `E{seq_num:01}` renumbers `E25`, `E26`, ... to `E01`, `E02`, ... in batch order. Quick Insert targets the last focused field.
 
 ## Development
 
